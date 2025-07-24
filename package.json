@@ -1,0 +1,20 @@
+{
+  "name": "the-game-wasm",
+  "version": "1.0.0",
+  "description": "A WebAssembly-powered particle system game",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "build:wasm": "cd wasm && wasm-pack build --target web --out-dir ../src/wasm"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0",
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0"
+  },
+  "dependencies": {
+    "wasm-pack": "^0.12.0"
+  }
+}
