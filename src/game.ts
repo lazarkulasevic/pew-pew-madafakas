@@ -186,30 +186,33 @@ class SpaceShooterGame {
       let dataIndex = 0
 
       // Safety check for minimum data length
-      if (gameData.length < 5) {
+      if (gameData.length < 6) {
         console.error("Game data too short:", gameData.length)
         return
       }
 
-      // Parse metadata: [player_count, enemy_count, player_bullet_count, enemy_bullet_count, power_up_count]
+      // Parse metadata: [player_count, enemy_count, player_bullet_count, enemy_bullet_count, power_up_count, explosion_count]
       const playerCount = Math.floor(gameData[dataIndex++])
       const enemyCount = Math.floor(gameData[dataIndex++])
       const playerBulletCount = Math.floor(gameData[dataIndex++])
       const enemyBulletCount = Math.floor(gameData[dataIndex++])
       const powerUpCount = Math.floor(gameData[dataIndex++])
+      const explosionCount = Math.floor(gameData[dataIndex++])
 
       // Safety check for reasonable counts
       if (
         enemyCount > 100 ||
         playerBulletCount > 100 ||
         enemyBulletCount > 100 ||
-        powerUpCount > 50
+        powerUpCount > 50 ||
+        explosionCount > 20
       ) {
         console.error("Unreasonable object counts:", {
           enemyCount,
           playerBulletCount,
           enemyBulletCount,
           powerUpCount,
+          explosionCount,
         })
         return
       }
@@ -298,6 +301,23 @@ class SpaceShooterGame {
           this.drawPowerUp(x, y, size, powerType)
         }
       }
+
+      // Draw explosions (4 values each: x, y, size, life_ratio)
+      for (
+        let i = 0;
+        i < explosionCount && dataIndex + 3 < gameData.length;
+        i++
+      ) {
+        const x = gameData[dataIndex++]
+        const y = gameData[dataIndex++]
+        const size = gameData[dataIndex++]
+        const lifeRatio = gameData[dataIndex++]
+
+        // Safety check for explosion position
+        if (x >= 0 && y >= 0 && size > 0) {
+          this.drawExplosion(x, y, size, lifeRatio)
+        }
+      }
     } catch (error) {
       console.error("Error in render function:", error)
     }
@@ -311,9 +331,6 @@ class SpaceShooterGame {
 
     // Draw realistic stars
     this.drawRealisticStars(time)
-
-    // Draw occasional shooting stars
-    this.drawShootingStars()
 
     // Draw subtle cosmic dust
     this.drawCosmicDust(time)
@@ -395,37 +412,6 @@ class SpaceShooterGame {
     }
 
     this.ctx.globalAlpha = 1
-  }
-
-  private drawShootingStars(): void {
-    // Only show shooting stars occasionally
-    if (Math.random() < 0.02) {
-      const x = Math.random() * this.canvas.width
-      const y = -20
-      const length = 100 + Math.random() * 50
-      const angle = Math.PI / 4 + (Math.random() - 0.5) * 0.5
-
-      // Create gradient for shooting star
-      const gradient = this.ctx.createLinearGradient(
-        x,
-        y,
-        x + Math.cos(angle) * length,
-        y + Math.sin(angle) * length
-      )
-      gradient.addColorStop(0, "rgba(255, 255, 255, 0.8)")
-      gradient.addColorStop(0.5, "rgba(255, 255, 255, 0.4)")
-      gradient.addColorStop(1, "rgba(255, 255, 255, 0)")
-
-      this.ctx.strokeStyle = gradient
-      this.ctx.lineWidth = 2
-      this.ctx.beginPath()
-      this.ctx.moveTo(x, y)
-      this.ctx.lineTo(
-        x + Math.cos(angle) * length,
-        y + Math.sin(angle) * length
-      )
-      this.ctx.stroke()
-    }
   }
 
   private drawCosmicDust(time: number): void {
@@ -1094,6 +1080,95 @@ class SpaceShooterGame {
     this.ctx.shadowBlur = 10
     this.ctx.beginPath()
     this.ctx.arc(0, 0, size, 0, Math.PI * 2)
+    this.ctx.stroke()
+
+    this.ctx.restore()
+  }
+
+  private drawExplosion(
+    x: number,
+    y: number,
+    size: number,
+    lifeRatio: number
+  ): void {
+    // Draw dramatic explosion effect
+    this.ctx.save()
+    this.ctx.translate(x, y)
+
+    const time = Date.now() * 0.001
+
+    // Explosion size based on life ratio (starts large, shrinks as it fades)
+    const explosionSize = size * (1 + (1 - lifeRatio) * 2)
+    const opacity = lifeRatio
+
+    // Core explosion - bright center
+    const coreGradient = this.ctx.createRadialGradient(
+      0,
+      0,
+      0,
+      0,
+      0,
+      explosionSize * 0.3
+    )
+    coreGradient.addColorStop(0, `rgba(255, 255, 255, ${opacity})`)
+    coreGradient.addColorStop(0.3, `rgba(255, 255, 0, ${opacity * 0.8})`)
+    coreGradient.addColorStop(0.6, `rgba(255, 165, 0, ${opacity * 0.6})`)
+    coreGradient.addColorStop(1, `rgba(255, 0, 0, ${opacity * 0.4})`)
+
+    this.ctx.fillStyle = coreGradient
+    this.ctx.beginPath()
+    this.ctx.arc(0, 0, explosionSize * 0.3, 0, Math.PI * 2)
+    this.ctx.fill()
+
+    // Outer explosion ring
+    const ringGradient = this.ctx.createRadialGradient(
+      0,
+      0,
+      explosionSize * 0.3,
+      0,
+      0,
+      explosionSize
+    )
+    ringGradient.addColorStop(0, `rgba(255, 165, 0, ${opacity * 0.6})`)
+    ringGradient.addColorStop(0.5, `rgba(255, 0, 0, ${opacity * 0.4})`)
+    ringGradient.addColorStop(1, `rgba(255, 0, 0, 0)`)
+
+    this.ctx.fillStyle = ringGradient
+    this.ctx.beginPath()
+    this.ctx.arc(0, 0, explosionSize, 0, Math.PI * 2)
+    this.ctx.fill()
+
+    // Explosion particles
+    const particleCount = Math.floor(15 * lifeRatio)
+    for (let i = 0; i < particleCount; i++) {
+      const angle = (i / particleCount) * Math.PI * 2 + time * 3
+      const distance = explosionSize * (0.5 + Math.random() * 0.5)
+      const particleX = Math.cos(angle) * distance
+      const particleY = Math.sin(angle) * distance
+      const particleSize = (2 + Math.random() * 3) * lifeRatio
+
+      this.ctx.fillStyle = `rgba(255, ${Math.random() > 0.5 ? 165 : 255}, 0, ${
+        opacity * 0.8
+      })`
+      this.ctx.beginPath()
+      this.ctx.arc(particleX, particleY, particleSize, 0, Math.PI * 2)
+      this.ctx.fill()
+    }
+
+    // Shockwave ring
+    const shockwaveSize = explosionSize * (1.5 + (1 - lifeRatio) * 2)
+    this.ctx.strokeStyle = `rgba(255, 255, 255, ${opacity * 0.3})`
+    this.ctx.lineWidth = 3 * lifeRatio
+    this.ctx.beginPath()
+    this.ctx.arc(0, 0, shockwaveSize, 0, Math.PI * 2)
+    this.ctx.stroke()
+
+    // Secondary shockwave
+    const secondarySize = explosionSize * (2 + (1 - lifeRatio) * 3)
+    this.ctx.strokeStyle = `rgba(255, 165, 0, ${opacity * 0.2})`
+    this.ctx.lineWidth = 2 * lifeRatio
+    this.ctx.beginPath()
+    this.ctx.arc(0, 0, secondarySize, 0, Math.PI * 2)
     this.ctx.stroke()
 
     this.ctx.restore()

@@ -8,6 +8,7 @@ pub struct GameEngine {
     bullets: Vec<Bullet>,
     enemy_bullets: Vec<Bullet>,
     power_ups: Vec<PowerUp>,
+    explosions: Vec<Explosion>,
     score: u32,
     level: u32,
     game_time: f32,
@@ -44,6 +45,7 @@ struct Enemy {
 }
 
 #[derive(Clone)]
+#[derive(PartialEq)]
 enum EnemyType {
     Basic,
     Fast,
@@ -76,6 +78,14 @@ enum PowerUpType {
     Shield,
 }
 
+struct Explosion {
+    x: f32,
+    y: f32,
+    size: f32,
+    life: f32,
+    max_life: f32,
+}
+
 #[wasm_bindgen]
 impl GameEngine {
     pub fn new(width: f32, height: f32) -> GameEngine {
@@ -97,6 +107,7 @@ impl GameEngine {
             bullets: Vec::new(),
             enemy_bullets: Vec::new(),
             power_ups: Vec::new(),
+            explosions: Vec::new(),
             score: 0,
             level: 1,
             game_time: 0.0,
@@ -140,6 +151,9 @@ impl GameEngine {
 
         // Update power-ups
         self.update_power_ups(delta_time);
+
+        // Update explosions
+        self.update_explosions(delta_time);
 
         // Check collisions
         self.check_collisions();
@@ -257,6 +271,12 @@ impl GameEngine {
         }
     }
 
+    fn update_explosions(&mut self, delta_time: f32) {
+        for explosion in &mut self.explosions {
+            explosion.life -= delta_time;
+        }
+    }
+
     fn check_collisions(&mut self) {
         // Player bullets vs enemies
         let mut bullets_to_remove = Vec::new();
@@ -278,6 +298,17 @@ impl GameEngine {
                             EnemyType::Fast => 150,
                             EnemyType::Tank => 300,
                         };
+
+                        // Create explosion for tank enemies
+                        if enemy.enemy_type == EnemyType::Tank {
+                            self.explosions.push(Explosion {
+                                x: enemy.x,
+                                y: enemy.y,
+                                size: enemy.size * 2.0,
+                                life: 1.0,
+                                max_life: 1.0,
+                            });
+                        }
                     }
                     break;
                 }
@@ -357,6 +388,9 @@ impl GameEngine {
 
         // Remove off-screen power-ups
         self.power_ups.retain(|power_up| power_up.y < self.height + 50.0);
+
+        // Remove dead explosions
+        self.explosions.retain(|explosion| explosion.life > 0.0);
     }
 
     pub fn move_player(&mut self, dx: f32, dy: f32) {
@@ -421,12 +455,13 @@ impl GameEngine {
     pub fn get_game_data(&self) -> Float32Array {
         let mut data = Vec::new();
 
-        // Add metadata: [player_count, enemy_count, player_bullet_count, enemy_bullet_count, power_up_count]
+        // Add metadata: [player_count, enemy_count, player_bullet_count, enemy_bullet_count, power_up_count, explosion_count]
         data.push(1.0); // player_count
         data.push(self.enemies.len() as f32);
         data.push(self.bullets.len() as f32);
         data.push(self.enemy_bullets.len() as f32);
         data.push(self.power_ups.len() as f32);
+        data.push(self.explosions.len() as f32);
 
         // Player data (x, y, size, health, power_level)
         data.push(self.player.x);
@@ -474,6 +509,14 @@ impl GameEngine {
                 PowerUpType::Weapon => 1.0,
                 PowerUpType::Shield => 2.0,
             });
+        }
+
+        // Explosions data (x, y, size, life_ratio)
+        for explosion in &self.explosions {
+            data.push(explosion.x);
+            data.push(explosion.y);
+            data.push(explosion.size);
+            data.push(explosion.life / explosion.max_life);
         }
 
         unsafe { Float32Array::view(&data) }
