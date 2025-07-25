@@ -40,6 +40,10 @@ class SpaceShooterGame {
         e.preventDefault()
         this.isShooting = true
       }
+      if (e.key === "q" || e.key === "Q") {
+        e.preventDefault()
+        this.activateBlackHole()
+      }
     })
 
     document.addEventListener("keyup", (e) => {
@@ -169,6 +173,29 @@ class SpaceShooterGame {
         warpIndicator.style.display = "none"
       }
     }
+
+    // Update black hole indicator
+    const blackHoleIndicator = document.getElementById(
+      "blackHoleIndicator"
+    ) as HTMLElement
+    if (blackHoleIndicator) {
+      const cooldown = this.gameEngine.get_black_hole_cooldown()
+      if (cooldown > 0.0) {
+        blackHoleIndicator.style.display = "block"
+        blackHoleIndicator.style.color = "#ff00ff"
+        blackHoleIndicator.textContent = `BLACK HOLE: ${cooldown.toFixed(1)}s`
+      } else {
+        blackHoleIndicator.style.display = "block"
+        blackHoleIndicator.style.color = "#00ff00"
+        blackHoleIndicator.textContent = "BLACK HOLE: READY"
+      }
+    }
+  }
+
+  private activateBlackHole(): void {
+    if (this.gameEngine) {
+      this.gameEngine.activate_black_hole()
+    }
   }
 
   private render(): void {
@@ -186,18 +213,19 @@ class SpaceShooterGame {
       let dataIndex = 0
 
       // Safety check for minimum data length
-      if (gameData.length < 6) {
+      if (gameData.length < 7) {
         console.error("Game data too short:", gameData.length)
         return
       }
 
-      // Parse metadata: [player_count, enemy_count, player_bullet_count, enemy_bullet_count, power_up_count, explosion_count]
+      // Parse metadata: [player_count, enemy_count, player_bullet_count, enemy_bullet_count, power_up_count, explosion_count, black_hole_count]
       const playerCount = Math.floor(gameData[dataIndex++])
       const enemyCount = Math.floor(gameData[dataIndex++])
       const playerBulletCount = Math.floor(gameData[dataIndex++])
       const enemyBulletCount = Math.floor(gameData[dataIndex++])
       const powerUpCount = Math.floor(gameData[dataIndex++])
       const explosionCount = Math.floor(gameData[dataIndex++])
+      const blackHoleCount = Math.floor(gameData[dataIndex++])
 
       // Safety check for reasonable counts
       if (
@@ -318,6 +346,24 @@ class SpaceShooterGame {
         // Safety check for explosion position
         if (x >= 0 && y >= 0 && size > 0) {
           this.drawExplosion(x, y, size, lifeRatio)
+        }
+      }
+
+      // Draw black holes (5 values each: x, y, size, life_ratio, pull_radius)
+      for (
+        let i = 0;
+        i < blackHoleCount && dataIndex + 4 < gameData.length;
+        i++
+      ) {
+        const x = gameData[dataIndex++]
+        const y = gameData[dataIndex++]
+        const size = gameData[dataIndex++]
+        const lifeRatio = gameData[dataIndex++]
+        const pullRadius = gameData[dataIndex++]
+
+        // Safety check for black hole position
+        if (x >= 0 && y >= 0 && size > 0) {
+          this.drawBlackHole(x, y, size, lifeRatio, pullRadius)
         }
       }
     } catch (error) {
@@ -1009,6 +1055,98 @@ class SpaceShooterGame {
     this.ctx.beginPath()
     this.ctx.ellipse(0, 0, size * 1.2, size * 1.2, 0, 0, Math.PI * 2)
     this.ctx.stroke()
+  }
+
+  private drawBlackHole(
+    x: number,
+    y: number,
+    size: number,
+    lifeRatio: number,
+    pullRadius: number
+  ): void {
+    // Draw epic black hole effect
+    this.ctx.save()
+    this.ctx.translate(x, y)
+
+    const time = Date.now() * 0.001
+
+    // Black hole core - pure darkness
+    const coreGradient = this.ctx.createRadialGradient(0, 0, 0, 0, 0, size)
+    coreGradient.addColorStop(0, "rgba(0, 0, 0, 1)")
+    coreGradient.addColorStop(0.3, "rgba(20, 20, 20, 0.9)")
+    coreGradient.addColorStop(0.7, "rgba(40, 40, 40, 0.7)")
+    coreGradient.addColorStop(1, "rgba(60, 60, 60, 0.3)")
+
+    this.ctx.fillStyle = coreGradient
+    this.ctx.beginPath()
+    this.ctx.arc(0, 0, size, 0, Math.PI * 2)
+    this.ctx.fill()
+
+    // Event horizon ring
+    const eventHorizonSize = size * (1 + Math.sin(time * 8) * 0.1)
+    this.ctx.strokeStyle = `rgba(255, 255, 255, ${0.8 * lifeRatio})`
+    this.ctx.lineWidth = 3
+    this.ctx.beginPath()
+    this.ctx.arc(0, 0, eventHorizonSize, 0, Math.PI * 2)
+    this.ctx.stroke()
+
+    // Gravitational lensing effect
+    const lensingCount = 8
+    for (let i = 0; i < lensingCount; i++) {
+      const angle = (i / lensingCount) * Math.PI * 2 + time * 2
+      const lensingSize = size * (1.5 + i * 0.3)
+      const lensingOpacity = (0.3 - i * 0.03) * lifeRatio
+
+      this.ctx.strokeStyle = `rgba(255, 255, 255, ${lensingOpacity})`
+      this.ctx.lineWidth = 1
+      this.ctx.beginPath()
+      this.ctx.ellipse(
+        0,
+        0,
+        lensingSize,
+        lensingSize * 0.3,
+        angle,
+        0,
+        Math.PI * 2
+      )
+      this.ctx.stroke()
+    }
+
+    // Pull radius indicator (subtle)
+    this.ctx.strokeStyle = `rgba(255, 255, 255, ${0.1 * lifeRatio})`
+    this.ctx.lineWidth = 1
+    this.ctx.beginPath()
+    this.ctx.arc(0, 0, pullRadius, 0, Math.PI * 2)
+    this.ctx.stroke()
+
+    // Swirling particles around the black hole
+    const particleCount = Math.floor(20 * lifeRatio)
+    for (let i = 0; i < particleCount; i++) {
+      const angle = (i / particleCount) * Math.PI * 2 + time * 5
+      const distance = size * (1.2 + Math.sin(time * 3 + i) * 0.3)
+      const particleX = Math.cos(angle) * distance
+      const particleY = Math.sin(angle) * distance
+      const particleSize = (1 + Math.sin(time * 10 + i) * 0.5) * lifeRatio
+
+      this.ctx.fillStyle = `rgba(255, 255, 255, ${0.6 * lifeRatio})`
+      this.ctx.beginPath()
+      this.ctx.arc(particleX, particleY, particleSize, 0, Math.PI * 2)
+      this.ctx.fill()
+    }
+
+    // Energy distortion waves
+    for (let i = 0; i < 3; i++) {
+      const waveSize = size * (2 + i * 0.5) + Math.sin(time * 4 + i) * 10
+      const waveOpacity = (0.2 - i * 0.05) * lifeRatio
+
+      this.ctx.strokeStyle = `rgba(255, 255, 255, ${waveOpacity})`
+      this.ctx.lineWidth = 2
+      this.ctx.beginPath()
+      this.ctx.arc(0, 0, waveSize, 0, Math.PI * 2)
+      this.ctx.stroke()
+    }
+
+    this.ctx.restore()
   }
 
   private drawWarpCoreEffect(size: number, time: number): void {

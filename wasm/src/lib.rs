@@ -9,6 +9,7 @@ pub struct GameEngine {
     enemy_bullets: Vec<Bullet>,
     power_ups: Vec<PowerUp>,
     explosions: Vec<Explosion>,
+    black_holes: Vec<BlackHole>,
     score: u32,
     level: u32,
     game_time: f32,
@@ -32,6 +33,7 @@ struct Player {
     power_level: u32,
     growth_level: u32,
     enemies_killed: u32,
+    black_hole_cooldown: f32,
 }
 
 #[derive(Clone)]
@@ -88,6 +90,16 @@ struct Explosion {
     max_life: f32,
 }
 
+struct BlackHole {
+    x: f32,
+    y: f32,
+    size: f32,
+    life: f32,
+    max_life: f32,
+    pull_radius: f32,
+    consumed_enemies: Vec<(f32, f32)>, // Store positions of consumed enemies
+}
+
 #[wasm_bindgen]
 impl GameEngine {
     pub fn new(width: f32, height: f32) -> GameEngine {
@@ -103,6 +115,7 @@ impl GameEngine {
             power_level: 1,
             growth_level: 0,
             enemies_killed: 0,
+            black_hole_cooldown: 0.0,
         };
 
         GameEngine {
@@ -112,6 +125,7 @@ impl GameEngine {
             enemy_bullets: Vec::new(),
             power_ups: Vec::new(),
             explosions: Vec::new(),
+            black_holes: Vec::new(),
             score: 0,
             level: 1,
             game_time: 0.0,
@@ -159,6 +173,9 @@ impl GameEngine {
         // Update explosions
         self.update_explosions(delta_time);
 
+        // Update black holes
+        self.update_black_holes(delta_time);
+
         // Check collisions
         self.check_collisions();
 
@@ -183,6 +200,11 @@ impl GameEngine {
         // Update shoot cooldown
         if self.player.shoot_cooldown > 0.0 {
             self.player.shoot_cooldown -= delta_time;
+        }
+
+        // Update black hole cooldown
+        if self.player.black_hole_cooldown > 0.0 {
+            self.player.black_hole_cooldown -= delta_time;
         }
     }
 
@@ -278,6 +300,45 @@ impl GameEngine {
     fn update_explosions(&mut self, delta_time: f32) {
         for explosion in &mut self.explosions {
             explosion.life -= delta_time;
+        }
+    }
+
+    fn update_black_holes(&mut self, delta_time: f32) {
+        for black_hole in &mut self.black_holes {
+            black_hole.life -= delta_time;
+
+            // Track enemies to remove (consumed by black hole)
+            let mut enemies_to_remove = Vec::new();
+
+            // Pull enemies towards the black hole
+            for (enemy_idx, enemy) in self.enemies.iter_mut().enumerate() {
+                let dx = black_hole.x - enemy.x;
+                let dy = black_hole.y - enemy.y;
+                let distance = (dx * dx + dy * dy).sqrt();
+
+                if distance < black_hole.pull_radius {
+                    // Calculate pull force (stronger when closer)
+                    let pull_force = 200.0 * (1.0 - distance / black_hole.pull_radius);
+                    let normalized_dx = dx / distance;
+                    let normalized_dy = dy / distance;
+
+                    enemy.x += normalized_dx * pull_force * delta_time;
+                    enemy.y += normalized_dy * pull_force * delta_time;
+
+                    // If enemy is very close, consume it
+                    if distance < black_hole.size {
+                        black_hole.consumed_enemies.push((enemy.x, enemy.y));
+                        enemies_to_remove.push(enemy_idx);
+                    }
+                }
+            }
+
+            // Remove consumed enemies
+            for &idx in enemies_to_remove.iter().rev() {
+                if idx < self.enemies.len() {
+                    self.enemies.remove(idx);
+                }
+            }
         }
     }
 
@@ -400,13 +461,19 @@ impl GameEngine {
 
         // Remove collided objects
         for &idx in bullets_to_remove.iter().rev() {
-            self.bullets.remove(idx);
+            if idx < self.bullets.len() {
+                self.bullets.remove(idx);
+            }
         }
         for &idx in enemies_to_remove.iter().rev() {
-            self.enemies.remove(idx);
+            if idx < self.enemies.len() {
+                self.enemies.remove(idx);
+            }
         }
         for &idx in power_ups_to_remove.iter().rev() {
-            self.power_ups.remove(idx);
+            if idx < self.power_ups.len() {
+                self.power_ups.remove(idx);
+            }
         }
     }
 
@@ -423,6 +490,34 @@ impl GameEngine {
 
         // Remove dead explosions
         self.explosions.retain(|explosion| explosion.life > 0.0);
+
+        // Remove dead black holes and create explosions
+        let mut black_holes_to_remove = Vec::new();
+        for (i, black_hole) in self.black_holes.iter().enumerate() {
+            if black_hole.life <= 0.0 {
+                black_holes_to_remove.push(i);
+
+                // Create massive explosion when black hole expires
+                let explosion_size = black_hole.size * 3.0 + black_hole.consumed_enemies.len() as f32 * 10.0;
+                self.explosions.push(Explosion {
+                    x: black_hole.x,
+                    y: black_hole.y,
+                    size: explosion_size,
+                    life: 2.0, // Longer explosion
+                    max_life: 2.0,
+                });
+
+                // Add score for consumed enemies
+                self.score += black_hole.consumed_enemies.len() as u32 * 200;
+            }
+        }
+
+        // Remove dead black holes
+        for &idx in black_holes_to_remove.iter().rev() {
+            if idx < self.black_holes.len() {
+                self.black_holes.remove(idx);
+            }
+        }
     }
 
     pub fn move_player(&mut self, dx: f32, dy: f32) {
@@ -484,16 +579,39 @@ impl GameEngine {
         }
     }
 
+    pub fn activate_black_hole(&mut self) {
+        if self.player.black_hole_cooldown <= 0.0 {
+            // Calculate target position in front of player
+            let target_distance = 200.0; // Distance in front of player
+            let target_x = self.player.x;
+            let target_y = self.player.y - target_distance; // Shoot upward
+
+            // Create black hole at target position
+            self.black_holes.push(BlackHole {
+                x: target_x,
+                y: target_y,
+                size: 30.0,
+                life: 3.0, // 3 seconds duration
+                max_life: 3.0,
+                pull_radius: 150.0, // Large pull radius
+                consumed_enemies: Vec::new(),
+            });
+
+            self.player.black_hole_cooldown = 10.0; // 10 second cooldown as requested
+        }
+    }
+
     pub fn get_game_data(&self) -> Float32Array {
         let mut data = Vec::new();
 
-        // Add metadata: [player_count, enemy_count, player_bullet_count, enemy_bullet_count, power_up_count, explosion_count]
+        // Add metadata: [player_count, enemy_count, player_bullet_count, enemy_bullet_count, power_up_count, explosion_count, black_hole_count]
         data.push(1.0); // player_count
         data.push(self.enemies.len() as f32);
         data.push(self.bullets.len() as f32);
         data.push(self.enemy_bullets.len() as f32);
         data.push(self.power_ups.len() as f32);
         data.push(self.explosions.len() as f32);
+        data.push(self.black_holes.len() as f32);
 
         // Player data (x, y, size, health, power_level, growth_level)
         data.push(self.player.x);
@@ -552,6 +670,15 @@ impl GameEngine {
             data.push(explosion.life / explosion.max_life);
         }
 
+        // Black holes data (x, y, size, life_ratio, pull_radius)
+        for black_hole in &self.black_holes {
+            data.push(black_hole.x);
+            data.push(black_hole.y);
+            data.push(black_hole.size);
+            data.push(black_hole.life / black_hole.max_life);
+            data.push(black_hole.pull_radius);
+        }
+
         unsafe { Float32Array::view(&data) }
     }
 
@@ -571,6 +698,10 @@ impl GameEngine {
         self.game_over
     }
 
+    pub fn get_black_hole_cooldown(&self) -> f32 {
+        self.player.black_hole_cooldown
+    }
+
     pub fn reset(&mut self) {
         self.player = Player {
             x: self.width / 2.0,
@@ -584,6 +715,7 @@ impl GameEngine {
             power_level: 1,
             growth_level: 0,
             enemies_killed: 0,
+            black_hole_cooldown: 0.0,
         };
         self.enemies.clear();
         self.bullets.clear();
