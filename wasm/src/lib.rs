@@ -58,7 +58,6 @@ struct Bullet {
     vy: f32,
     size: f32,
     damage: f32,
-    is_enemy: bool,
 }
 
 #[derive(Clone)]
@@ -234,7 +233,6 @@ impl GameEngine {
                     vy: 150.0,
                     size: 5.0,
                     damage: 10.0,
-                    is_enemy: true,
                 });
                 enemy.shoot_cooldown = 2.0;
             }
@@ -381,7 +379,6 @@ impl GameEngine {
                         vy: -bullet_speed,
                         size: bullet_size,
                         damage: bullet_damage,
-                        is_enemy: false,
                     });
                 }
                 2 => {
@@ -392,7 +389,6 @@ impl GameEngine {
                         vy: -bullet_speed,
                         size: bullet_size,
                         damage: bullet_damage,
-                        is_enemy: false,
                     });
                     self.bullets.push(Bullet {
                         x: self.player.x + 10.0,
@@ -401,7 +397,6 @@ impl GameEngine {
                         vy: -bullet_speed,
                         size: bullet_size,
                         damage: bullet_damage,
-                        is_enemy: false,
                     });
                 }
                 3 => {
@@ -413,7 +408,6 @@ impl GameEngine {
                             vy: -bullet_speed,
                             size: bullet_size,
                             damage: bullet_damage,
-                            is_enemy: false,
                         });
                     }
                 }

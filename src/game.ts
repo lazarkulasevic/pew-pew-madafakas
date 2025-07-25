@@ -82,20 +82,39 @@ class SpaceShooterGame {
   private update(deltaTime: number): void {
     if (!this.gameEngine) return
 
-    // Handle input
+    // Handle input - prevent multiple conflicting keys
     let dx = 0
     let dy = 0
 
-    if (this.keys.has("arrowleft") || this.keys.has("a")) dx -= 1
-    if (this.keys.has("arrowright") || this.keys.has("d")) dx += 1
-    if (this.keys.has("arrowup") || this.keys.has("w")) dy -= 1
-    if (this.keys.has("arrowdown") || this.keys.has("s")) dy += 1
+    // Only allow one direction per axis (prioritize last pressed)
+    const pressedKeys = Array.from(this.keys)
+
+    // Handle horizontal movement - only one direction
+    if (pressedKeys.includes("arrowleft") || pressedKeys.includes("a")) {
+      dx = -1
+    } else if (
+      pressedKeys.includes("arrowright") ||
+      pressedKeys.includes("d")
+    ) {
+      dx = 1
+    }
+
+    // Handle vertical movement - only one direction
+    if (pressedKeys.includes("arrowup") || pressedKeys.includes("w")) {
+      dy = -1
+    } else if (pressedKeys.includes("arrowdown") || pressedKeys.includes("s")) {
+      dy = 1
+    }
 
     // Normalize diagonal movement
     if (dx !== 0 && dy !== 0) {
       dx *= 0.707 // 1/√2
       dy *= 0.707
     }
+
+    // Clamp values to prevent extreme movement
+    dx = Math.max(-1, Math.min(1, dx))
+    dy = Math.max(-1, Math.min(1, dy))
 
     this.gameEngine.move_player(dx, dy)
 
@@ -143,91 +162,262 @@ class SpaceShooterGame {
     // Draw starfield background
     this.drawStarfield()
 
-    // Get game data from WebAssembly
-    const gameData = this.gameEngine.get_game_data()
-    let dataIndex = 0
+    try {
+      // Get game data from WebAssembly
+      const gameData = this.gameEngine.get_game_data()
+      let dataIndex = 0
 
-    // Parse metadata: [player_count, enemy_count, player_bullet_count, enemy_bullet_count, power_up_count]
-    if (dataIndex + 4 >= gameData.length) return
+      // Safety check for minimum data length
+      if (gameData.length < 5) {
+        console.error("Game data too short:", gameData.length)
+        return
+      }
 
-    const playerCount = Math.floor(gameData[dataIndex++])
-    const enemyCount = Math.floor(gameData[dataIndex++])
-    const playerBulletCount = Math.floor(gameData[dataIndex++])
-    const enemyBulletCount = Math.floor(gameData[dataIndex++])
-    const powerUpCount = Math.floor(gameData[dataIndex++])
+      // Parse metadata: [player_count, enemy_count, player_bullet_count, enemy_bullet_count, power_up_count]
+      const playerCount = Math.floor(gameData[dataIndex++])
+      const enemyCount = Math.floor(gameData[dataIndex++])
+      const playerBulletCount = Math.floor(gameData[dataIndex++])
+      const enemyBulletCount = Math.floor(gameData[dataIndex++])
+      const powerUpCount = Math.floor(gameData[dataIndex++])
 
-    // Draw player (5 values: x, y, size, health, power_level)
-    if (dataIndex + 4 < gameData.length) {
-      const playerX = gameData[dataIndex++]
-      const playerY = gameData[dataIndex++]
-      const playerSize = gameData[dataIndex++]
-      const playerHealth = gameData[dataIndex++]
-      const playerPowerLevel = gameData[dataIndex++]
+      // Safety check for reasonable counts
+      if (
+        enemyCount > 100 ||
+        playerBulletCount > 100 ||
+        enemyBulletCount > 100 ||
+        powerUpCount > 50
+      ) {
+        console.error("Unreasonable object counts:", {
+          enemyCount,
+          playerBulletCount,
+          enemyBulletCount,
+          powerUpCount,
+        })
+        return
+      }
 
-      this.drawPlayer(
-        playerX,
-        playerY,
-        playerSize,
-        playerHealth,
-        playerPowerLevel
-      )
-    }
+      // Draw player (5 values: x, y, size, health, power_level)
+      if (dataIndex + 4 < gameData.length) {
+        const playerX = gameData[dataIndex++]
+        const playerY = gameData[dataIndex++]
+        const playerSize = gameData[dataIndex++]
+        const playerHealth = gameData[dataIndex++]
+        const playerPowerLevel = gameData[dataIndex++]
 
-    // Draw enemies (5 values each: x, y, size, health, type)
-    for (let i = 0; i < enemyCount && dataIndex + 4 < gameData.length; i++) {
-      const x = gameData[dataIndex++]
-      const y = gameData[dataIndex++]
-      const size = gameData[dataIndex++]
-      const health = gameData[dataIndex++]
-      const enemyType = gameData[dataIndex++]
-      this.drawEnemy(x, y, size, health, enemyType)
-    }
+        // Safety check for player position
+        if (playerX >= 0 && playerY >= 0 && playerSize > 0) {
+          this.drawPlayer(
+            playerX,
+            playerY,
+            playerSize,
+            playerHealth,
+            playerPowerLevel
+          )
+        }
+      }
 
-    // Draw player bullets (4 values each: x, y, size, is_enemy)
-    for (
-      let i = 0;
-      i < playerBulletCount && dataIndex + 3 < gameData.length;
-      i++
-    ) {
-      const x = gameData[dataIndex++]
-      const y = gameData[dataIndex++]
-      const size = gameData[dataIndex++]
-      const isEnemy = gameData[dataIndex++]
-      this.drawBullet(x, y, size, isEnemy === 1.0)
-    }
+      // Draw enemies (5 values each: x, y, size, health, type)
+      for (let i = 0; i < enemyCount && dataIndex + 4 < gameData.length; i++) {
+        const x = gameData[dataIndex++]
+        const y = gameData[dataIndex++]
+        const size = gameData[dataIndex++]
+        const health = gameData[dataIndex++]
+        const enemyType = gameData[dataIndex++]
 
-    // Draw enemy bullets (4 values each: x, y, size, is_enemy)
-    for (
-      let i = 0;
-      i < enemyBulletCount && dataIndex + 3 < gameData.length;
-      i++
-    ) {
-      const x = gameData[dataIndex++]
-      const y = gameData[dataIndex++]
-      const size = gameData[dataIndex++]
-      const isEnemy = gameData[dataIndex++]
-      this.drawBullet(x, y, size, isEnemy === 1.0)
-    }
+        // Safety check for enemy position
+        if (x >= 0 && y >= 0 && size > 0) {
+          this.drawEnemy(x, y, size, health, enemyType)
+        }
+      }
 
-    // Draw power-ups (4 values each: x, y, size, type)
-    for (let i = 0; i < powerUpCount && dataIndex + 3 < gameData.length; i++) {
-      const x = gameData[dataIndex++]
-      const y = gameData[dataIndex++]
-      const size = gameData[dataIndex++]
-      const powerType = gameData[dataIndex++]
-      this.drawPowerUp(x, y, size, powerType)
+      // Draw player bullets (4 values each: x, y, size, is_enemy)
+      for (
+        let i = 0;
+        i < playerBulletCount && dataIndex + 3 < gameData.length;
+        i++
+      ) {
+        const x = gameData[dataIndex++]
+        const y = gameData[dataIndex++]
+        const size = gameData[dataIndex++]
+        const isEnemy = gameData[dataIndex++]
+
+        // Safety check for bullet position
+        if (x >= 0 && y >= 0 && size > 0) {
+          this.drawBullet(x, y, size, isEnemy === 1.0)
+        }
+      }
+
+      // Draw enemy bullets (4 values each: x, y, size, is_enemy)
+      for (
+        let i = 0;
+        i < enemyBulletCount && dataIndex + 3 < gameData.length;
+        i++
+      ) {
+        const x = gameData[dataIndex++]
+        const y = gameData[dataIndex++]
+        const size = gameData[dataIndex++]
+        const isEnemy = gameData[dataIndex++]
+
+        // Safety check for bullet position
+        if (x >= 0 && y >= 0 && size > 0) {
+          this.drawBullet(x, y, size, isEnemy === 1.0)
+        }
+      }
+
+      // Draw power-ups (4 values each: x, y, size, type)
+      for (
+        let i = 0;
+        i < powerUpCount && dataIndex + 3 < gameData.length;
+        i++
+      ) {
+        const x = gameData[dataIndex++]
+        const y = gameData[dataIndex++]
+        const size = gameData[dataIndex++]
+        const powerType = gameData[dataIndex++]
+
+        // Safety check for power-up position
+        if (x >= 0 && y >= 0 && size > 0) {
+          this.drawPowerUp(x, y, size, powerType)
+        }
+      }
+    } catch (error) {
+      console.error("Error in render function:", error)
     }
   }
 
   private drawStarfield(): void {
-    // Create a simple animated starfield
     const time = Date.now() * 0.001
-    this.ctx.fillStyle = "rgba(255, 255, 255, 0.8)"
 
-    for (let i = 0; i < 100; i++) {
-      const x = (i * 37) % this.canvas.width
-      const y = (i * 73 + time * 50) % this.canvas.height
-      const size = (i % 3) + 1
+    // Create elegant deep space background
+    this.drawElegantSpaceBackground()
+
+    // Draw realistic stars
+    this.drawRealisticStars(time)
+
+    // Draw occasional shooting stars
+    this.drawShootingStars()
+
+    // Draw subtle cosmic dust
+    this.drawCosmicDust(time)
+  }
+
+  private drawElegantSpaceBackground(): void {
+    // Create elegant deep space background like real space photography
+    const centerX = this.canvas.width / 2
+    const centerY = this.canvas.height / 2
+
+    // Base deep space gradient - more realistic colors
+    const baseGradient = this.ctx.createRadialGradient(
+      centerX,
+      centerY,
+      0,
+      centerX,
+      centerY,
+      this.canvas.width * 0.7
+    )
+    baseGradient.addColorStop(0, "#0a0a2e") // Deep navy center
+    baseGradient.addColorStop(0.4, "#0d0d1a") // Dark navy
+    baseGradient.addColorStop(0.8, "#000011") // Very dark blue
+    baseGradient.addColorStop(1, "#000000") // Pure black
+
+    this.ctx.fillStyle = baseGradient
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height)
+
+    // Add very subtle cosmic background radiation
+    this.ctx.save()
+    this.ctx.globalAlpha = 0.03
+    const subtleGradient = this.ctx.createRadialGradient(
+      centerX,
+      centerY,
+      0,
+      centerX,
+      centerY,
+      this.canvas.width * 0.5
+    )
+    subtleGradient.addColorStop(0, "rgba(255, 255, 255, 0.1)")
+    subtleGradient.addColorStop(1, "rgba(255, 255, 255, 0)")
+
+    this.ctx.fillStyle = subtleGradient
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height)
+    this.ctx.restore()
+  }
+
+  private drawRealisticStars(time: number): void {
+    // Draw realistic stars like actual space photography
+    const starColors = ["#ffffff", "#f0f8ff", "#e6f3ff", "#f5f5dc"]
+
+    for (let layer = 1; layer <= 3; layer++) {
+      const count = layer === 1 ? 60 : layer === 2 ? 40 : 25
+      const speed = layer * 0.3
+      const baseSize = layer * 0.8
+
+      for (let i = 0; i < count; i++) {
+        const seed = i * 37 + layer * 73
+        const x = (seed * 17) % this.canvas.width
+        const y = ((seed * 23 + time * speed) % (this.canvas.height + 100)) - 50
+
+        // Subtle twinkling effect
+        const twinkle = Math.sin(time * 1.5 + seed) * 0.2 + 0.8
+        const colorIndex = Math.floor(
+          ((Math.sin(seed) + 1) * starColors.length) / 2
+        )
+        const color = starColors[colorIndex % starColors.length]
+        const size = baseSize * twinkle
+
+        // Only draw if star is visible
+        if (y > -10 && y < this.canvas.height + 10) {
+          this.ctx.globalAlpha = 0.9 * twinkle
+
+          this.ctx.fillStyle = color
+          this.ctx.beginPath()
+          this.ctx.arc(x, y, size, 0, Math.PI * 2)
+          this.ctx.fill()
+        }
+      }
+    }
+
+    this.ctx.globalAlpha = 1
+  }
+
+  private drawShootingStars(): void {
+    // Only show shooting stars occasionally
+    if (Math.random() < 0.02) {
+      const x = Math.random() * this.canvas.width
+      const y = -20
+      const length = 100 + Math.random() * 50
+      const angle = Math.PI / 4 + (Math.random() - 0.5) * 0.5
+
+      // Create gradient for shooting star
+      const gradient = this.ctx.createLinearGradient(
+        x,
+        y,
+        x + Math.cos(angle) * length,
+        y + Math.sin(angle) * length
+      )
+      gradient.addColorStop(0, "rgba(255, 255, 255, 0.8)")
+      gradient.addColorStop(0.5, "rgba(255, 255, 255, 0.4)")
+      gradient.addColorStop(1, "rgba(255, 255, 255, 0)")
+
+      this.ctx.strokeStyle = gradient
+      this.ctx.lineWidth = 2
+      this.ctx.beginPath()
+      this.ctx.moveTo(x, y)
+      this.ctx.lineTo(
+        x + Math.cos(angle) * length,
+        y + Math.sin(angle) * length
+      )
+      this.ctx.stroke()
+    }
+  }
+
+  private drawCosmicDust(time: number): void {
+    this.ctx.fillStyle = "rgba(255, 255, 255, 0.1)"
+
+    for (let i = 0; i < 200; i++) {
+      const seed = i * 47
+      const x = (seed * 13 + time * 5) % this.canvas.width
+      const y = (seed * 19 + time * 3) % this.canvas.height
+      const size = 0.5 + Math.sin(time + seed) * 0.3
 
       this.ctx.beginPath()
       this.ctx.arc(x, y, size, 0, Math.PI * 2)
