@@ -1,4 +1,5 @@
 import init, { GameEngine } from "./wasm/particle_system.js"
+import { SoundManager } from "./sound.js"
 
 class SpaceShooterGame {
   private canvas: HTMLCanvasElement
@@ -9,10 +10,14 @@ class SpaceShooterGame {
   private keys: Set<string> = new Set()
   private isShooting: boolean = false
   private isMovingForward: boolean = false
+  private soundManager: SoundManager
+  private lastExplosionCount: number = 0
+  private lastBlackHoleCount: number = 0
 
   constructor() {
     this.canvas = document.getElementById("canvas") as HTMLCanvasElement
     this.ctx = this.canvas.getContext("2d")!
+    this.soundManager = new SoundManager()
     this.setupCanvas()
     this.setupInput()
     this.init()
@@ -44,6 +49,9 @@ class SpaceShooterGame {
         e.preventDefault()
         this.activateBlackHole()
       }
+
+      // Resume audio context on first user interaction
+      this.soundManager.resumeAudio()
     })
 
     document.addEventListener("keyup", (e) => {
@@ -128,6 +136,7 @@ class SpaceShooterGame {
 
     if (this.isShooting) {
       this.gameEngine.shoot()
+      this.soundManager.playLaserSound()
     }
 
     // Update game engine
@@ -195,6 +204,7 @@ class SpaceShooterGame {
   private activateBlackHole(): void {
     if (this.gameEngine) {
       this.gameEngine.activate_black_hole()
+      this.soundManager.playBlackHoleActivation()
     }
   }
 
@@ -226,6 +236,20 @@ class SpaceShooterGame {
       const powerUpCount = Math.floor(gameData[dataIndex++])
       const explosionCount = Math.floor(gameData[dataIndex++])
       const blackHoleCount = Math.floor(gameData[dataIndex++])
+
+      // Check for new explosions and play sounds
+      if (explosionCount > this.lastExplosionCount) {
+        // New explosion detected - play tank explosion sound
+        this.soundManager.playExplosionSound("tank")
+      }
+      this.lastExplosionCount = explosionCount
+
+      // Check for new black holes and play sounds
+      if (blackHoleCount > this.lastBlackHoleCount) {
+        // New black hole detected - play black hole activation sound
+        this.soundManager.playBlackHoleActivation()
+      }
+      this.lastBlackHoleCount = blackHoleCount
 
       // Safety check for reasonable counts
       if (
@@ -1750,6 +1774,7 @@ class SpaceShooterGame {
 
 // Initialize the game
 const game = new SpaceShooterGame()
+;(window as any).gameInstance = game
 
 // Global restart function for the HTML button
 ;(window as any).restartGame = () => {

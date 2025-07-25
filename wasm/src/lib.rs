@@ -702,6 +702,15 @@ impl GameEngine {
         self.player.black_hole_cooldown
     }
 
+    pub fn get_explosion_events(&self) -> Vec<f32> {
+        // Return explosion events: [type, x, y] where type: 0=tank, 1=blackhole
+        let mut events = Vec::new();
+
+        // Check for new tank explosions (we'll track this in the game state)
+        // For now, we'll return empty and handle this differently
+        events
+    }
+
     pub fn reset(&mut self) {
         self.player = Player {
             x: self.width / 2.0,

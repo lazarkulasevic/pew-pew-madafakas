@@ -113,6 +113,27 @@
       color: #4fc3f7;
       text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
     }
+
+    .sound-toggle {
+      position: fixed;
+      top: 60px;
+      right: 20px;
+      background: #4fc3f7;
+      color: white;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: bold;
+      transition: background 0.3s ease;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .sound-toggle:hover {
+      background: #29b6f6;
+    }
   </style>
 </head>
 
@@ -133,6 +154,10 @@
     Level: <span id="level">1</span>
   </div>
 
+  <button id="soundToggle" class="sound-toggle" onclick="toggleSound()">
+    🔊 Sound ON
+  </button>
+
   <div class="controls">
     <h3>Controls</h3>
     <p>↑↓←→ Move Ship</p>
@@ -148,6 +173,17 @@
   </div>
 
   <script type="module" src="/src/game.ts"></script>
+
+  <script>
+    // Global function for sound toggle
+    function toggleSound() {
+      // This will be called by the button, but we need to access the game instance
+      // We'll handle this in the game class
+      if (window.gameInstance && window.gameInstance.soundManager) {
+        window.gameInstance.soundManager.toggleSound()
+      }
+    }
+  </script>
 </body>
 
 </html>
