@@ -8,6 +8,7 @@ class SpaceShooterGame {
   private lastTime: number = 0
   private keys: Set<string> = new Set()
   private isShooting: boolean = false
+  private isMovingForward: boolean = false
 
   constructor() {
     this.canvas = document.getElementById("canvas") as HTMLCanvasElement
@@ -116,6 +117,9 @@ class SpaceShooterGame {
     dx = Math.max(-1, Math.min(1, dx))
     dy = Math.max(-1, Math.min(1, dy))
 
+    // Store movement state for warp core effect
+    this.isMovingForward = dy < 0
+
     this.gameEngine.move_player(dx, dy)
 
     if (this.isShooting) {
@@ -151,6 +155,20 @@ class SpaceShooterGame {
     const healthPercent = (this.gameEngine.get_health() / 100.0) * 100
     const healthFill = document.getElementById("healthFill") as HTMLElement
     healthFill.style.width = `${healthPercent}%`
+
+    // Update propulsion indicator
+    const warpIndicator = document.getElementById(
+      "warpIndicator"
+    ) as HTMLElement
+    if (warpIndicator) {
+      if (this.isMovingForward) {
+        warpIndicator.style.display = "block"
+        warpIndicator.style.color = "#00ffff"
+        warpIndicator.textContent = "PROPULSION ACTIVE"
+      } else {
+        warpIndicator.style.display = "none"
+      }
+    }
   }
 
   private render(): void {
@@ -432,45 +450,234 @@ class SpaceShooterGame {
     health: number,
     powerLevel: number
   ): void {
-    // Draw player ship
+    // Draw realistic player spaceship
     this.ctx.save()
     this.ctx.translate(x, y)
 
-    // Ship body
-    this.ctx.fillStyle = "#4fc3f7"
+    const time = Date.now() * 0.001
+
+    // Main hull - sleek fighter design
+    const hullGradient = this.ctx.createLinearGradient(0, -size, 0, size * 0.8)
+    hullGradient.addColorStop(0, "#4fc3f7") // Light blue top
+    hullGradient.addColorStop(0.5, "#29b6f6") // Medium blue middle
+    hullGradient.addColorStop(1, "#0277bd") // Dark blue bottom
+
+    this.ctx.fillStyle = hullGradient
     this.ctx.beginPath()
-    this.ctx.moveTo(0, -size)
-    this.ctx.lineTo(-size * 0.7, size * 0.5)
-    this.ctx.lineTo(-size * 0.3, size * 0.3)
-    this.ctx.lineTo(size * 0.3, size * 0.3)
-    this.ctx.lineTo(size * 0.7, size * 0.5)
+    // Main body
+    this.ctx.moveTo(0, -size * 0.9)
+    this.ctx.lineTo(-size * 0.4, -size * 0.3)
+    this.ctx.lineTo(-size * 0.6, size * 0.2)
+    this.ctx.lineTo(-size * 0.3, size * 0.6)
+    this.ctx.lineTo(size * 0.3, size * 0.6)
+    this.ctx.lineTo(size * 0.6, size * 0.2)
+    this.ctx.lineTo(size * 0.4, -size * 0.3)
     this.ctx.closePath()
     this.ctx.fill()
 
-    // Ship details
-    this.ctx.fillStyle = "#29b6f6"
+    // Cockpit
+    const cockpitGradient = this.ctx.createRadialGradient(
+      0,
+      -size * 0.2,
+      0,
+      0,
+      -size * 0.2,
+      size * 0.3
+    )
+    cockpitGradient.addColorStop(0, "#e1f5fe")
+    cockpitGradient.addColorStop(0.7, "#81d4fa")
+    cockpitGradient.addColorStop(1, "#0288d1")
+
+    this.ctx.fillStyle = cockpitGradient
     this.ctx.beginPath()
-    this.ctx.moveTo(0, -size * 0.8)
-    this.ctx.lineTo(-size * 0.4, size * 0.2)
-    this.ctx.lineTo(size * 0.4, size * 0.2)
+    this.ctx.ellipse(
+      0,
+      -size * 0.2,
+      size * 0.25,
+      size * 0.15,
+      0,
+      0,
+      Math.PI * 2
+    )
+    this.ctx.fill()
+
+    // Wings
+    this.ctx.fillStyle = "#0277bd"
+    this.ctx.beginPath()
+    // Left wing
+    this.ctx.moveTo(-size * 0.4, -size * 0.3)
+    this.ctx.lineTo(-size * 0.8, -size * 0.1)
+    this.ctx.lineTo(-size * 0.7, size * 0.1)
+    this.ctx.lineTo(-size * 0.6, size * 0.2)
     this.ctx.closePath()
     this.ctx.fill()
 
-    // Engine glow
-    this.ctx.fillStyle = "#ff9800"
+    // Right wing
     this.ctx.beginPath()
-    this.ctx.arc(0, size * 0.3, size * 0.2, 0, Math.PI * 2)
+    this.ctx.moveTo(size * 0.4, -size * 0.3)
+    this.ctx.lineTo(size * 0.8, -size * 0.1)
+    this.ctx.lineTo(size * 0.7, size * 0.1)
+    this.ctx.lineTo(size * 0.6, size * 0.2)
+    this.ctx.closePath()
     this.ctx.fill()
+
+    // Engine exhaust with animation
+    const engineGlow = Math.sin(time * 10) * 0.3 + 0.7
+    const engineGradient = this.ctx.createRadialGradient(
+      0,
+      size * 0.6,
+      0,
+      0,
+      size * 0.6,
+      size * 0.4
+    )
+    engineGradient.addColorStop(0, `rgba(255, 152, 0, ${engineGlow})`)
+    engineGradient.addColorStop(0.5, `rgba(255, 87, 34, ${engineGlow * 0.7})`)
+    engineGradient.addColorStop(1, "rgba(255, 87, 34, 0)")
+
+    this.ctx.fillStyle = engineGradient
+    this.ctx.beginPath()
+    this.ctx.ellipse(0, size * 0.6, size * 0.3, size * 0.2, 0, 0, Math.PI * 2)
+    this.ctx.fill()
+
+    // Engine details
+    this.ctx.fillStyle = "#424242"
+    this.ctx.beginPath()
+    this.ctx.ellipse(0, size * 0.6, size * 0.15, size * 0.1, 0, 0, Math.PI * 2)
+    this.ctx.fill()
+
+    // Weapon systems (based on power level)
+    if (powerLevel >= 2) {
+      this.ctx.fillStyle = "#ffeb3b"
+      // Left weapon
+      this.ctx.beginPath()
+      this.ctx.ellipse(
+        -size * 0.3,
+        -size * 0.1,
+        size * 0.08,
+        size * 0.05,
+        0,
+        0,
+        Math.PI * 2
+      )
+      this.ctx.fill()
+      // Right weapon
+      this.ctx.beginPath()
+      this.ctx.ellipse(
+        size * 0.3,
+        -size * 0.1,
+        size * 0.08,
+        size * 0.05,
+        0,
+        0,
+        Math.PI * 2
+      )
+      this.ctx.fill()
+    }
+
+    if (powerLevel >= 3) {
+      this.ctx.fillStyle = "#ff9800"
+      // Center weapon
+      this.ctx.beginPath()
+      this.ctx.ellipse(
+        0,
+        -size * 0.05,
+        size * 0.1,
+        size * 0.06,
+        0,
+        0,
+        Math.PI * 2
+      )
+      this.ctx.fill()
+    }
+
+    // Shield effect (if health is low)
+    if (health < 30) {
+      this.ctx.strokeStyle = `rgba(255, 193, 7, ${
+        0.5 + Math.sin(time * 5) * 0.3
+      })`
+      this.ctx.lineWidth = 2
+      this.ctx.beginPath()
+      this.ctx.ellipse(0, 0, size * 1.2, size * 1.2, 0, 0, Math.PI * 2)
+      this.ctx.stroke()
+    }
+
+    // Warp core effect when moving forward
+    if (this.isMovingForward) {
+      this.drawWarpCoreEffect(size, time)
+    }
 
     this.ctx.restore()
 
     // Draw power level indicator
     if (powerLevel > 1) {
       this.ctx.fillStyle = "#ffeb3b"
-      this.ctx.font = "12px Arial"
+      this.ctx.font = "bold 12px Arial"
       this.ctx.textAlign = "center"
-      this.ctx.fillText(`P${powerLevel}`, x, y - size - 10)
+      this.ctx.fillText(`P${powerLevel}`, x, y - size - 15)
     }
+  }
+
+  private drawWarpCoreEffect(size: number, time: number): void {
+    // Clean propulsion tail effect
+    this.ctx.save()
+
+    // Energy trails behind the ship
+    const trailCount = 8
+    for (let i = 0; i < trailCount; i++) {
+      const trailLength = size * 2.5
+      const trailWidth = size * 0.25 * (1 - i / trailCount)
+      const trailY = size * 0.6 + (i * trailLength) / trailCount
+      const trailOpacity = (1 - i / trailCount) * 0.9
+
+      // Blue energy trail
+      const trailGradient = this.ctx.createLinearGradient(
+        0,
+        trailY,
+        0,
+        trailY + trailLength / trailCount
+      )
+      trailGradient.addColorStop(0, `rgba(0, 150, 255, ${trailOpacity})`)
+      trailGradient.addColorStop(
+        0.5,
+        `rgba(0, 200, 255, ${trailOpacity * 0.7})`
+      )
+      trailGradient.addColorStop(1, `rgba(0, 150, 255, 0)`)
+
+      this.ctx.fillStyle = trailGradient
+      this.ctx.beginPath()
+      this.ctx.ellipse(
+        0,
+        trailY,
+        trailWidth,
+        trailLength / trailCount / 2,
+        0,
+        0,
+        Math.PI * 2
+      )
+      this.ctx.fill()
+    }
+
+    // Propulsion glow at the engine
+    const engineGlow = Math.sin(time * 10) * 0.3 + 0.7
+    const glowGradient = this.ctx.createRadialGradient(
+      0,
+      size * 0.6,
+      0,
+      0,
+      size * 0.6,
+      size * 0.6
+    )
+    glowGradient.addColorStop(0, `rgba(0, 255, 255, ${engineGlow * 0.6})`)
+    glowGradient.addColorStop(0.5, `rgba(0, 200, 255, ${engineGlow * 0.3})`)
+    glowGradient.addColorStop(1, "rgba(0, 150, 255, 0)")
+
+    this.ctx.fillStyle = glowGradient
+    this.ctx.beginPath()
+    this.ctx.ellipse(0, size * 0.6, size * 0.6, size * 0.4, 0, 0, Math.PI * 2)
+    this.ctx.fill()
+
+    this.ctx.restore()
   }
 
   private drawEnemy(
@@ -480,49 +687,24 @@ class SpaceShooterGame {
     health: number,
     enemyType: number
   ): void {
+    // Draw realistic enemy spaceships
     this.ctx.save()
     this.ctx.translate(x, y)
 
-    let color: string
-    let shape: string
+    const time = Date.now() * 0.001
 
     switch (enemyType) {
-      case 0: // Basic
-        color = "#f44336"
-        shape = "circle"
+      case 0: // Basic Fighter
+        this.drawBasicFighter(size, time)
         break
-      case 1: // Fast
-        color = "#ff9800"
-        shape = "triangle"
+      case 1: // Fast Interceptor
+        this.drawFastInterceptor(size, time)
         break
-      case 2: // Tank
-        color = "#9c27b0"
-        shape = "square"
+      case 2: // Heavy Tank
+        this.drawHeavyTank(size, time, health)
         break
       default:
-        color = "#f44336"
-        shape = "circle"
-    }
-
-    this.ctx.fillStyle = color
-
-    switch (shape) {
-      case "circle":
-        this.ctx.beginPath()
-        this.ctx.arc(0, 0, size, 0, Math.PI * 2)
-        this.ctx.fill()
-        break
-      case "triangle":
-        this.ctx.beginPath()
-        this.ctx.moveTo(0, size)
-        this.ctx.lineTo(-size, -size)
-        this.ctx.lineTo(size, -size)
-        this.ctx.closePath()
-        this.ctx.fill()
-        break
-      case "square":
-        this.ctx.fillRect(-size, -size, size * 2, size * 2)
-        break
+        this.drawBasicFighter(size, time)
     }
 
     this.ctx.restore()
@@ -530,19 +712,261 @@ class SpaceShooterGame {
     // Draw health bar for tank enemies
     if (enemyType === 2) {
       const healthPercent = health / 50.0
-      const barWidth = size * 2
-      const barHeight = 4
+      const barWidth = size * 2.5
+      const barHeight = 6
+
+      // Health bar background
+      this.ctx.fillStyle = "rgba(0, 0, 0, 0.7)"
+      this.ctx.fillRect(
+        x - barWidth / 2 - 2,
+        y - size - 15 - 2,
+        barWidth + 4,
+        barHeight + 4
+      )
 
       this.ctx.fillStyle = "rgba(255, 0, 0, 0.5)"
-      this.ctx.fillRect(x - barWidth / 2, y - size - 10, barWidth, barHeight)
+      this.ctx.fillRect(x - barWidth / 2, y - size - 15, barWidth, barHeight)
 
-      this.ctx.fillStyle = "#ff4444"
+      // Health bar fill
+      const healthColor =
+        healthPercent > 0.5
+          ? "#4caf50"
+          : healthPercent > 0.25
+          ? "#ff9800"
+          : "#f44336"
+      this.ctx.fillStyle = healthColor
       this.ctx.fillRect(
         x - barWidth / 2,
-        y - size - 10,
+        y - size - 15,
         barWidth * healthPercent,
         barHeight
       )
+    }
+  }
+
+  private drawBasicFighter(size: number, time: number): void {
+    // Basic enemy fighter - sleek and aggressive
+    const hullGradient = this.ctx.createLinearGradient(0, -size, 0, size)
+    hullGradient.addColorStop(0, "#f44336") // Red top
+    hullGradient.addColorStop(0.5, "#d32f2f") // Dark red middle
+    hullGradient.addColorStop(1, "#b71c1c") // Very dark red bottom
+
+    this.ctx.fillStyle = hullGradient
+    this.ctx.beginPath()
+    // Main body - pointed design
+    this.ctx.moveTo(0, -size * 0.8)
+    this.ctx.lineTo(-size * 0.3, -size * 0.2)
+    this.ctx.lineTo(-size * 0.5, size * 0.3)
+    this.ctx.lineTo(-size * 0.2, size * 0.6)
+    this.ctx.lineTo(size * 0.2, size * 0.6)
+    this.ctx.lineTo(size * 0.5, size * 0.3)
+    this.ctx.lineTo(size * 0.3, -size * 0.2)
+    this.ctx.closePath()
+    this.ctx.fill()
+
+    // Cockpit
+    this.ctx.fillStyle = "#ffcdd2"
+    this.ctx.beginPath()
+    this.ctx.ellipse(0, -size * 0.1, size * 0.15, size * 0.1, 0, 0, Math.PI * 2)
+    this.ctx.fill()
+
+    // Wings
+    this.ctx.fillStyle = "#b71c1c"
+    this.ctx.beginPath()
+    // Left wing
+    this.ctx.moveTo(-size * 0.3, -size * 0.2)
+    this.ctx.lineTo(-size * 0.6, -size * 0.1)
+    this.ctx.lineTo(-size * 0.5, size * 0.2)
+    this.ctx.lineTo(-size * 0.5, size * 0.3)
+    this.ctx.closePath()
+    this.ctx.fill()
+
+    // Right wing
+    this.ctx.beginPath()
+    this.ctx.moveTo(size * 0.3, -size * 0.2)
+    this.ctx.lineTo(size * 0.6, -size * 0.1)
+    this.ctx.lineTo(size * 0.5, size * 0.2)
+    this.ctx.lineTo(size * 0.5, size * 0.3)
+    this.ctx.closePath()
+    this.ctx.fill()
+
+    // Engine glow
+    const engineGlow = Math.sin(time * 8) * 0.4 + 0.6
+    this.ctx.fillStyle = `rgba(255, 87, 34, ${engineGlow})`
+    this.ctx.beginPath()
+    this.ctx.ellipse(0, size * 0.6, size * 0.2, size * 0.15, 0, 0, Math.PI * 2)
+    this.ctx.fill()
+  }
+
+  private drawFastInterceptor(size: number, time: number): void {
+    // Fast interceptor - streamlined and dangerous
+    const hullGradient = this.ctx.createLinearGradient(0, -size, 0, size)
+    hullGradient.addColorStop(0, "#ff9800") // Orange top
+    hullGradient.addColorStop(0.5, "#f57c00") // Dark orange middle
+    hullGradient.addColorStop(1, "#e65100") // Very dark orange bottom
+
+    this.ctx.fillStyle = hullGradient
+    this.ctx.beginPath()
+    // Main body - very streamlined
+    this.ctx.moveTo(0, -size * 0.9)
+    this.ctx.lineTo(-size * 0.2, -size * 0.4)
+    this.ctx.lineTo(-size * 0.4, size * 0.2)
+    this.ctx.lineTo(-size * 0.15, size * 0.5)
+    this.ctx.lineTo(size * 0.15, size * 0.5)
+    this.ctx.lineTo(size * 0.4, size * 0.2)
+    this.ctx.lineTo(size * 0.2, -size * 0.4)
+    this.ctx.closePath()
+    this.ctx.fill()
+
+    // Cockpit
+    this.ctx.fillStyle = "#fff3e0"
+    this.ctx.beginPath()
+    this.ctx.ellipse(
+      0,
+      -size * 0.3,
+      size * 0.12,
+      size * 0.08,
+      0,
+      0,
+      Math.PI * 2
+    )
+    this.ctx.fill()
+
+    // Extended wings for speed
+    this.ctx.fillStyle = "#e65100"
+    this.ctx.beginPath()
+    // Left wing
+    this.ctx.moveTo(-size * 0.2, -size * 0.4)
+    this.ctx.lineTo(-size * 0.7, -size * 0.2)
+    this.ctx.lineTo(-size * 0.6, size * 0.1)
+    this.ctx.lineTo(-size * 0.4, size * 0.2)
+    this.ctx.closePath()
+    this.ctx.fill()
+
+    // Right wing
+    this.ctx.beginPath()
+    this.ctx.moveTo(size * 0.2, -size * 0.4)
+    this.ctx.lineTo(size * 0.7, -size * 0.2)
+    this.ctx.lineTo(size * 0.6, size * 0.1)
+    this.ctx.lineTo(size * 0.4, size * 0.2)
+    this.ctx.closePath()
+    this.ctx.fill()
+
+    // Dual engine glow
+    const engineGlow = Math.sin(time * 12) * 0.5 + 0.5
+    this.ctx.fillStyle = `rgba(255, 152, 0, ${engineGlow})`
+    // Left engine
+    this.ctx.beginPath()
+    this.ctx.ellipse(
+      -size * 0.15,
+      size * 0.5,
+      size * 0.15,
+      size * 0.1,
+      0,
+      0,
+      Math.PI * 2
+    )
+    this.ctx.fill()
+    // Right engine
+    this.ctx.beginPath()
+    this.ctx.ellipse(
+      size * 0.15,
+      size * 0.5,
+      size * 0.15,
+      size * 0.1,
+      0,
+      0,
+      Math.PI * 2
+    )
+    this.ctx.fill()
+  }
+
+  private drawHeavyTank(size: number, time: number, health: number): void {
+    // Heavy tank - massive and armored
+    const hullGradient = this.ctx.createLinearGradient(0, -size, 0, size)
+    hullGradient.addColorStop(0, "#9c27b0") // Purple top
+    hullGradient.addColorStop(0.5, "#7b1fa2") // Dark purple middle
+    hullGradient.addColorStop(1, "#4a148c") // Very dark purple bottom
+
+    this.ctx.fillStyle = hullGradient
+    this.ctx.beginPath()
+    // Main body - heavily armored
+    this.ctx.moveTo(0, -size * 0.7)
+    this.ctx.lineTo(-size * 0.6, -size * 0.3)
+    this.ctx.lineTo(-size * 0.8, size * 0.1)
+    this.ctx.lineTo(-size * 0.6, size * 0.5)
+    this.ctx.lineTo(-size * 0.3, size * 0.7)
+    this.ctx.lineTo(size * 0.3, size * 0.7)
+    this.ctx.lineTo(size * 0.6, size * 0.5)
+    this.ctx.lineTo(size * 0.8, size * 0.1)
+    this.ctx.lineTo(size * 0.6, -size * 0.3)
+    this.ctx.closePath()
+    this.ctx.fill()
+
+    // Armor plates
+    this.ctx.fillStyle = "#4a148c"
+    this.ctx.beginPath()
+    this.ctx.rect(-size * 0.4, -size * 0.2, size * 0.8, size * 0.4)
+    this.ctx.fill()
+
+    // Cockpit
+    this.ctx.fillStyle = "#e1bee7"
+    this.ctx.beginPath()
+    this.ctx.ellipse(0, -size * 0.1, size * 0.2, size * 0.12, 0, 0, Math.PI * 2)
+    this.ctx.fill()
+
+    // Heavy weapon turrets
+    this.ctx.fillStyle = "#424242"
+    // Left turret
+    this.ctx.beginPath()
+    this.ctx.ellipse(-size * 0.4, 0, size * 0.15, size * 0.1, 0, 0, Math.PI * 2)
+    this.ctx.fill()
+    // Right turret
+    this.ctx.beginPath()
+    this.ctx.ellipse(size * 0.4, 0, size * 0.15, size * 0.1, 0, 0, Math.PI * 2)
+    this.ctx.fill()
+
+    // Multiple engine exhausts
+    const engineGlow = Math.sin(time * 6) * 0.3 + 0.7
+    this.ctx.fillStyle = `rgba(156, 39, 176, ${engineGlow})`
+    // Left engine
+    this.ctx.beginPath()
+    this.ctx.ellipse(
+      -size * 0.3,
+      size * 0.7,
+      size * 0.2,
+      size * 0.15,
+      0,
+      0,
+      Math.PI * 2
+    )
+    this.ctx.fill()
+    // Right engine
+    this.ctx.beginPath()
+    this.ctx.ellipse(
+      size * 0.3,
+      size * 0.7,
+      size * 0.2,
+      size * 0.15,
+      0,
+      0,
+      Math.PI * 2
+    )
+    this.ctx.fill()
+    // Center engine
+    this.ctx.beginPath()
+    this.ctx.ellipse(0, size * 0.7, size * 0.25, size * 0.18, 0, 0, Math.PI * 2)
+    this.ctx.fill()
+
+    // Shield effect (if health is high)
+    if (health > 35) {
+      this.ctx.strokeStyle = `rgba(156, 39, 176, ${
+        0.3 + Math.sin(time * 3) * 0.2
+      })`
+      this.ctx.lineWidth = 3
+      this.ctx.beginPath()
+      this.ctx.ellipse(0, 0, size * 1.4, size * 1.4, 0, 0, Math.PI * 2)
+      this.ctx.stroke()
     }
   }
 
@@ -555,24 +979,68 @@ class SpaceShooterGame {
     this.ctx.save()
     this.ctx.translate(x, y)
 
+    const time = Date.now() * 0.001
+
     if (isEnemy) {
-      // Enemy bullet
-      this.ctx.fillStyle = "#ff4444"
-      this.ctx.beginPath()
-      this.ctx.arc(0, 0, size, 0, Math.PI * 2)
-      this.ctx.fill()
-    } else {
-      // Player bullet
-      this.ctx.fillStyle = "#4fc3f7"
+      // Enemy bullet - plasma projectile
+      const bulletGradient = this.ctx.createRadialGradient(0, 0, 0, 0, 0, size)
+      bulletGradient.addColorStop(0, "#ffeb3b") // Bright yellow core
+      bulletGradient.addColorStop(0.3, "#ff9800") // Orange
+      bulletGradient.addColorStop(0.7, "#f44336") // Red
+      bulletGradient.addColorStop(1, "rgba(244, 67, 54, 0)") // Transparent edge
+
+      this.ctx.fillStyle = bulletGradient
       this.ctx.beginPath()
       this.ctx.arc(0, 0, size, 0, Math.PI * 2)
       this.ctx.fill()
 
-      // Bullet trail
-      this.ctx.fillStyle = "rgba(79, 195, 247, 0.5)"
+      // Plasma glow effect
+      const glowIntensity = Math.sin(time * 15) * 0.3 + 0.7
+      this.ctx.strokeStyle = `rgba(255, 235, 59, ${glowIntensity})`
+      this.ctx.lineWidth = 2
       this.ctx.beginPath()
-      this.ctx.arc(0, size * 2, size * 0.5, 0, Math.PI * 2)
+      this.ctx.arc(0, 0, size * 1.5, 0, Math.PI * 2)
+      this.ctx.stroke()
+    } else {
+      // Player bullet - energy projectile
+      const bulletGradient = this.ctx.createRadialGradient(0, 0, 0, 0, 0, size)
+      bulletGradient.addColorStop(0, "#ffffff") // White core
+      bulletGradient.addColorStop(0.3, "#4fc3f7") // Light blue
+      bulletGradient.addColorStop(0.7, "#2196f3") // Blue
+      bulletGradient.addColorStop(1, "rgba(33, 150, 243, 0)") // Transparent edge
+
+      this.ctx.fillStyle = bulletGradient
+      this.ctx.beginPath()
+      this.ctx.arc(0, 0, size, 0, Math.PI * 2)
       this.ctx.fill()
+
+      // Energy trail
+      const trailLength = 8
+      const trailGradient = this.ctx.createLinearGradient(0, -trailLength, 0, 0)
+      trailGradient.addColorStop(0, "rgba(79, 195, 247, 0)")
+      trailGradient.addColorStop(0.5, "rgba(79, 195, 247, 0.6)")
+      trailGradient.addColorStop(1, "rgba(79, 195, 247, 0.8)")
+
+      this.ctx.fillStyle = trailGradient
+      this.ctx.beginPath()
+      this.ctx.ellipse(
+        0,
+        -trailLength / 2,
+        size * 0.8,
+        trailLength / 2,
+        0,
+        0,
+        Math.PI * 2
+      )
+      this.ctx.fill()
+
+      // Energy glow effect
+      const glowIntensity = Math.sin(time * 20) * 0.4 + 0.6
+      this.ctx.strokeStyle = `rgba(79, 195, 247, ${glowIntensity})`
+      this.ctx.lineWidth = 1.5
+      this.ctx.beginPath()
+      this.ctx.arc(0, 0, size * 1.3, 0, Math.PI * 2)
+      this.ctx.stroke()
     }
 
     this.ctx.restore()
