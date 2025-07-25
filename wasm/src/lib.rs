@@ -30,6 +30,8 @@ struct Player {
     size: f32,
     shoot_cooldown: f32,
     power_level: u32,
+    growth_level: u32,
+    enemies_killed: u32,
 }
 
 #[derive(Clone)]
@@ -89,7 +91,7 @@ struct Explosion {
 #[wasm_bindgen]
 impl GameEngine {
     pub fn new(width: f32, height: f32) -> GameEngine {
-        let player = Player {
+        let player =         Player {
             x: width / 2.0,
             y: height - 100.0,
             vx: 0.0,
@@ -99,6 +101,8 @@ impl GameEngine {
             size: 20.0,
             shoot_cooldown: 0.0,
             power_level: 1,
+            growth_level: 0,
+            enemies_killed: 0,
         };
 
         GameEngine {
@@ -291,13 +295,20 @@ impl GameEngine {
                 if distance < bullet.size + enemy.size {
                     bullets_to_remove.push(bullet_idx);
                     enemy.health -= bullet.damage;
-                    if enemy.health <= 0.0 {
+                                        if enemy.health <= 0.0 {
                         enemies_to_remove.push(enemy_idx);
                         self.score += match enemy.enemy_type {
                             EnemyType::Basic => 100,
                             EnemyType::Fast => 150,
                             EnemyType::Tank => 300,
                         };
+
+                        // Track enemies killed and update growth level
+                        self.player.enemies_killed += 1;
+                        let new_growth_level = (self.player.enemies_killed / 10).min(5);
+                        if new_growth_level > self.player.growth_level {
+                            self.player.growth_level = new_growth_level;
+                        }
 
                         // Create explosion for tank enemies
                         if enemy.enemy_type == EnemyType::Tank {
@@ -315,17 +326,32 @@ impl GameEngine {
             }
         }
 
-        // Enemy bullets vs player
-        for bullet in &self.enemy_bullets {
+                // Enemy bullets vs player
+        let mut enemy_bullets_to_remove = Vec::new();
+        for (bullet_idx, bullet) in self.enemy_bullets.iter().enumerate() {
             let dx = bullet.x - self.player.x;
             let dy = bullet.y - self.player.y;
             let distance = (dx * dx + dy * dy).sqrt();
 
             if distance < bullet.size + self.player.size {
+                enemy_bullets_to_remove.push(bullet_idx);
                 self.player.health -= bullet.damage;
+
+                // Reduce growth level when taking damage
+                if self.player.growth_level > 0 {
+                    self.player.growth_level = self.player.growth_level.saturating_sub(1);
+                }
+
                 if self.player.health <= 0.0 {
                     self.game_over = true;
                 }
+            }
+        }
+
+        // Remove bullets that hit the player
+        for &idx in enemy_bullets_to_remove.iter().rev() {
+            if idx < self.enemy_bullets.len() {
+                self.enemy_bullets.remove(idx);
             }
         }
 
@@ -337,6 +363,12 @@ impl GameEngine {
 
             if distance < enemy.size + self.player.size {
                 self.player.health -= 20.0;
+
+                // Reduce growth level when taking damage
+                if self.player.growth_level > 0 {
+                    self.player.growth_level = self.player.growth_level.saturating_sub(1);
+                }
+
                 if self.player.health <= 0.0 {
                     self.game_over = true;
                 }
@@ -463,12 +495,13 @@ impl GameEngine {
         data.push(self.power_ups.len() as f32);
         data.push(self.explosions.len() as f32);
 
-        // Player data (x, y, size, health, power_level)
+        // Player data (x, y, size, health, power_level, growth_level)
         data.push(self.player.x);
         data.push(self.player.y);
         data.push(self.player.size);
         data.push(self.player.health);
         data.push(self.player.power_level as f32);
+        data.push(self.player.growth_level as f32);
 
         // Enemies data (x, y, size, health, type)
         for enemy in &self.enemies {
@@ -549,6 +582,8 @@ impl GameEngine {
             size: 20.0,
             shoot_cooldown: 0.0,
             power_level: 1,
+            growth_level: 0,
+            enemies_killed: 0,
         };
         self.enemies.clear();
         self.bullets.clear();

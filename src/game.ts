@@ -217,13 +217,14 @@ class SpaceShooterGame {
         return
       }
 
-      // Draw player (5 values: x, y, size, health, power_level)
-      if (dataIndex + 4 < gameData.length) {
+      // Draw player (6 values: x, y, size, health, power_level, growth_level)
+      if (dataIndex + 5 < gameData.length) {
         const playerX = gameData[dataIndex++]
         const playerY = gameData[dataIndex++]
         const playerSize = gameData[dataIndex++]
         const playerHealth = gameData[dataIndex++]
         const playerPowerLevel = gameData[dataIndex++]
+        const playerGrowthLevel = gameData[dataIndex++]
 
         // Safety check for player position
         if (playerX >= 0 && playerY >= 0 && playerSize > 0) {
@@ -232,7 +233,8 @@ class SpaceShooterGame {
             playerY,
             playerSize,
             playerHealth,
-            playerPowerLevel
+            playerPowerLevel,
+            playerGrowthLevel
           )
         }
       }
@@ -434,15 +436,73 @@ class SpaceShooterGame {
     y: number,
     size: number,
     health: number,
-    powerLevel: number
+    powerLevel: number,
+    growthLevel: number
   ): void {
-    // Draw realistic player spaceship
+    // Draw realistic player spaceship with growth levels
     this.ctx.save()
     this.ctx.translate(x, y)
 
     const time = Date.now() * 0.001
+    const healthPercent = health / 100.0
 
-    // Main hull - sleek fighter design
+    // Base ship size scales with growth level
+    const baseSize = size * (1 + growthLevel * 0.2)
+    const finalSize = baseSize * (0.7 + healthPercent * 0.3) // Shrink when damaged
+
+    // Draw different ship designs based on growth level
+    switch (Math.floor(growthLevel)) {
+      case 0:
+        this.drawBasicShip(finalSize, time, healthPercent, powerLevel)
+        break
+      case 1:
+        this.drawEnhancedShip(finalSize, time, healthPercent, powerLevel)
+        break
+      case 2:
+        this.drawAdvancedShip(finalSize, time, healthPercent, powerLevel)
+        break
+      case 3:
+        this.drawEliteShip(finalSize, time, healthPercent, powerLevel)
+        break
+      case 4:
+      case 5:
+        this.drawLegendaryShip(finalSize, time, healthPercent, powerLevel)
+        break
+      default:
+        this.drawBasicShip(finalSize, time, healthPercent, powerLevel)
+    }
+
+    // Warp core effect when moving forward
+    if (this.isMovingForward) {
+      this.drawWarpCoreEffect(finalSize, time)
+    }
+
+    this.ctx.restore()
+
+    // Draw growth level indicator
+    if (growthLevel > 0) {
+      this.ctx.fillStyle = "#00ff00"
+      this.ctx.font = "bold 12px Arial"
+      this.ctx.textAlign = "center"
+      this.ctx.fillText(`L${Math.floor(growthLevel)}`, x, y - finalSize - 15)
+    }
+
+    // Draw power level indicator
+    if (powerLevel > 1) {
+      this.ctx.fillStyle = "#ffeb3b"
+      this.ctx.font = "bold 12px Arial"
+      this.ctx.textAlign = "center"
+      this.ctx.fillText(`P${powerLevel}`, x, y - finalSize - 30)
+    }
+  }
+
+  private drawBasicShip(
+    size: number,
+    time: number,
+    healthPercent: number,
+    powerLevel: number
+  ): void {
+    // Level 0: Basic fighter - simple and clean
     const hullGradient = this.ctx.createLinearGradient(0, -size, 0, size * 0.8)
     hullGradient.addColorStop(0, "#4fc3f7") // Light blue top
     hullGradient.addColorStop(0.5, "#29b6f6") // Medium blue middle
@@ -507,6 +567,366 @@ class SpaceShooterGame {
     this.ctx.closePath()
     this.ctx.fill()
 
+    // Engine
+    this.drawEngine(size, time)
+
+    // Basic weapons
+    this.drawWeapons(size, powerLevel)
+
+    // Shield effect (if health is low)
+    if (healthPercent < 0.3) {
+      this.drawShield(size, time)
+    }
+  }
+
+  private drawEnhancedShip(
+    size: number,
+    time: number,
+    healthPercent: number,
+    powerLevel: number
+  ): void {
+    // Level 1: Enhanced fighter - more angular and aggressive
+    const hullGradient = this.ctx.createLinearGradient(0, -size, 0, size * 0.8)
+    hullGradient.addColorStop(0, "#00bcd4") // Cyan top
+    hullGradient.addColorStop(0.5, "#0097a7") // Darker cyan middle
+    hullGradient.addColorStop(1, "#006064") // Dark cyan bottom
+
+    this.ctx.fillStyle = hullGradient
+    this.ctx.beginPath()
+    // Enhanced body with more angles
+    this.ctx.moveTo(0, -size * 1.0)
+    this.ctx.lineTo(-size * 0.5, -size * 0.4)
+    this.ctx.lineTo(-size * 0.7, size * 0.1)
+    this.ctx.lineTo(-size * 0.4, size * 0.7)
+    this.ctx.lineTo(size * 0.4, size * 0.7)
+    this.ctx.lineTo(size * 0.7, size * 0.1)
+    this.ctx.lineTo(size * 0.5, -size * 0.4)
+    this.ctx.closePath()
+    this.ctx.fill()
+
+    // Enhanced cockpit
+    const cockpitGradient = this.ctx.createRadialGradient(
+      0,
+      -size * 0.3,
+      0,
+      0,
+      -size * 0.3,
+      size * 0.35
+    )
+    cockpitGradient.addColorStop(0, "#e0f7fa")
+    cockpitGradient.addColorStop(0.7, "#80deea")
+    cockpitGradient.addColorStop(1, "#00acc1")
+
+    this.ctx.fillStyle = cockpitGradient
+    this.ctx.beginPath()
+    this.ctx.ellipse(0, -size * 0.3, size * 0.3, size * 0.18, 0, 0, Math.PI * 2)
+    this.ctx.fill()
+
+    // Enhanced wings with fins
+    this.ctx.fillStyle = "#006064"
+    this.ctx.beginPath()
+    // Left wing with fin
+    this.ctx.moveTo(-size * 0.5, -size * 0.4)
+    this.ctx.lineTo(-size * 0.9, -size * 0.2)
+    this.ctx.lineTo(-size * 0.8, size * 0.2)
+    this.ctx.lineTo(-size * 0.7, size * 0.1)
+    this.ctx.closePath()
+    this.ctx.fill()
+
+    // Right wing with fin
+    this.ctx.beginPath()
+    this.ctx.moveTo(size * 0.5, -size * 0.4)
+    this.ctx.lineTo(size * 0.9, -size * 0.2)
+    this.ctx.lineTo(size * 0.8, size * 0.2)
+    this.ctx.lineTo(size * 0.7, size * 0.1)
+    this.ctx.closePath()
+    this.ctx.fill()
+
+    // Engine
+    this.drawEngine(size, time)
+
+    // Enhanced weapons
+    this.drawWeapons(size, powerLevel)
+
+    // Shield effect (if health is low)
+    if (healthPercent < 0.3) {
+      this.drawShield(size, time)
+    }
+  }
+
+  private drawAdvancedShip(
+    size: number,
+    time: number,
+    healthPercent: number,
+    powerLevel: number
+  ): void {
+    // Level 2: Advanced fighter - sleek and modern
+    const hullGradient = this.ctx.createLinearGradient(0, -size, 0, size * 0.8)
+    hullGradient.addColorStop(0, "#9c27b0") // Purple top
+    hullGradient.addColorStop(0.5, "#7b1fa2") // Darker purple middle
+    hullGradient.addColorStop(1, "#4a148c") // Dark purple bottom
+
+    this.ctx.fillStyle = hullGradient
+    this.ctx.beginPath()
+    // Advanced body with curves
+    this.ctx.moveTo(0, -size * 1.1)
+    this.ctx.lineTo(-size * 0.6, -size * 0.5)
+    this.ctx.lineTo(-size * 0.8, size * 0.0)
+    this.ctx.lineTo(-size * 0.5, size * 0.8)
+    this.ctx.lineTo(size * 0.5, size * 0.8)
+    this.ctx.lineTo(size * 0.8, size * 0.0)
+    this.ctx.lineTo(size * 0.6, -size * 0.5)
+    this.ctx.closePath()
+    this.ctx.fill()
+
+    // Advanced cockpit with glow
+    const cockpitGradient = this.ctx.createRadialGradient(
+      0,
+      -size * 0.4,
+      0,
+      0,
+      -size * 0.4,
+      size * 0.4
+    )
+    cockpitGradient.addColorStop(0, "#f3e5f5")
+    cockpitGradient.addColorStop(0.7, "#ce93d8")
+    cockpitGradient.addColorStop(1, "#ab47bc")
+
+    this.ctx.fillStyle = cockpitGradient
+    this.ctx.beginPath()
+    this.ctx.ellipse(0, -size * 0.4, size * 0.35, size * 0.2, 0, 0, Math.PI * 2)
+    this.ctx.fill()
+
+    // Advanced wings with energy fins
+    this.ctx.fillStyle = "#4a148c"
+    this.ctx.beginPath()
+    // Left wing with energy fin
+    this.ctx.moveTo(-size * 0.6, -size * 0.5)
+    this.ctx.lineTo(-size * 1.0, -size * 0.3)
+    this.ctx.lineTo(-size * 0.9, size * 0.3)
+    this.ctx.lineTo(-size * 0.8, size * 0.0)
+    this.ctx.closePath()
+    this.ctx.fill()
+
+    // Right wing with energy fin
+    this.ctx.beginPath()
+    this.ctx.moveTo(size * 0.6, -size * 0.5)
+    this.ctx.lineTo(size * 1.0, -size * 0.3)
+    this.ctx.lineTo(size * 0.9, size * 0.3)
+    this.ctx.lineTo(size * 0.8, size * 0.0)
+    this.ctx.closePath()
+    this.ctx.fill()
+
+    // Energy fins glow
+    this.ctx.strokeStyle = `rgba(156, 39, 176, ${
+      0.6 + Math.sin(time * 8) * 0.2
+    })`
+    this.ctx.lineWidth = 2
+    this.ctx.beginPath()
+    this.ctx.moveTo(-size * 0.8, size * 0.0)
+    this.ctx.lineTo(-size * 1.2, size * 0.4)
+    this.ctx.moveTo(size * 0.8, size * 0.0)
+    this.ctx.lineTo(size * 1.2, size * 0.4)
+    this.ctx.stroke()
+
+    // Engine
+    this.drawEngine(size, time)
+
+    // Advanced weapons
+    this.drawWeapons(size, powerLevel)
+
+    // Shield effect (if health is low)
+    if (healthPercent < 0.3) {
+      this.drawShield(size, time)
+    }
+  }
+
+  private drawEliteShip(
+    size: number,
+    time: number,
+    healthPercent: number,
+    powerLevel: number
+  ): void {
+    // Level 3: Elite fighter - powerful and intimidating
+    const hullGradient = this.ctx.createLinearGradient(0, -size, 0, size * 0.8)
+    hullGradient.addColorStop(0, "#ff9800") // Orange top
+    hullGradient.addColorStop(0.5, "#f57c00") // Darker orange middle
+    hullGradient.addColorStop(1, "#e65100") // Dark orange bottom
+
+    this.ctx.fillStyle = hullGradient
+    this.ctx.beginPath()
+    // Elite body with aggressive angles
+    this.ctx.moveTo(0, -size * 1.2)
+    this.ctx.lineTo(-size * 0.7, -size * 0.6)
+    this.ctx.lineTo(-size * 0.9, size * 0.1)
+    this.ctx.lineTo(-size * 0.6, size * 0.9)
+    this.ctx.lineTo(size * 0.6, size * 0.9)
+    this.ctx.lineTo(size * 0.9, size * 0.1)
+    this.ctx.lineTo(size * 0.7, -size * 0.6)
+    this.ctx.closePath()
+    this.ctx.fill()
+
+    // Elite cockpit with energy field
+    const cockpitGradient = this.ctx.createRadialGradient(
+      0,
+      -size * 0.5,
+      0,
+      0,
+      -size * 0.5,
+      size * 0.45
+    )
+    cockpitGradient.addColorStop(0, "#fff3e0")
+    cockpitGradient.addColorStop(0.7, "#ffcc02")
+    cockpitGradient.addColorStop(1, "#ff9800")
+
+    this.ctx.fillStyle = cockpitGradient
+    this.ctx.beginPath()
+    this.ctx.ellipse(0, -size * 0.5, size * 0.4, size * 0.25, 0, 0, Math.PI * 2)
+    this.ctx.fill()
+
+    // Elite wings with plasma fins
+    this.ctx.fillStyle = "#e65100"
+    this.ctx.beginPath()
+    // Left wing with plasma fin
+    this.ctx.moveTo(-size * 0.7, -size * 0.6)
+    this.ctx.lineTo(-size * 1.1, -size * 0.4)
+    this.ctx.lineTo(-size * 1.0, size * 0.4)
+    this.ctx.lineTo(-size * 0.9, size * 0.1)
+    this.ctx.closePath()
+    this.ctx.fill()
+
+    // Right wing with plasma fin
+    this.ctx.beginPath()
+    this.ctx.moveTo(size * 0.7, -size * 0.6)
+    this.ctx.lineTo(size * 1.1, -size * 0.4)
+    this.ctx.lineTo(size * 1.0, size * 0.4)
+    this.ctx.lineTo(size * 0.9, size * 0.1)
+    this.ctx.closePath()
+    this.ctx.fill()
+
+    // Plasma fins with intense glow
+    this.ctx.strokeStyle = `rgba(255, 152, 0, ${
+      0.8 + Math.sin(time * 10) * 0.2
+    })`
+    this.ctx.lineWidth = 3
+    this.ctx.beginPath()
+    this.ctx.moveTo(-size * 0.9, size * 0.1)
+    this.ctx.lineTo(-size * 1.4, size * 0.6)
+    this.ctx.moveTo(size * 0.9, size * 0.1)
+    this.ctx.lineTo(size * 1.4, size * 0.6)
+    this.ctx.stroke()
+
+    // Engine
+    this.drawEngine(size, time)
+
+    // Elite weapons
+    this.drawWeapons(size, powerLevel)
+
+    // Shield effect (if health is low)
+    if (healthPercent < 0.3) {
+      this.drawShield(size, time)
+    }
+  }
+
+  private drawLegendaryShip(
+    size: number,
+    time: number,
+    healthPercent: number,
+    powerLevel: number
+  ): void {
+    // Level 4-5: Legendary fighter - ultimate design
+    const hullGradient = this.ctx.createLinearGradient(0, -size, 0, size * 0.8)
+    hullGradient.addColorStop(0, "#e91e63") // Pink top
+    hullGradient.addColorStop(0.3, "#c2185b") // Darker pink
+    hullGradient.addColorStop(0.7, "#ad1457") // Even darker
+    hullGradient.addColorStop(1, "#880e4f") // Darkest pink bottom
+
+    this.ctx.fillStyle = hullGradient
+    this.ctx.beginPath()
+    // Legendary body with ultimate design
+    this.ctx.moveTo(0, -size * 1.3)
+    this.ctx.lineTo(-size * 0.8, -size * 0.7)
+    this.ctx.lineTo(-size * 1.0, size * 0.2)
+    this.ctx.lineTo(-size * 0.7, size * 1.0)
+    this.ctx.lineTo(size * 0.7, size * 1.0)
+    this.ctx.lineTo(size * 1.0, size * 0.2)
+    this.ctx.lineTo(size * 0.8, -size * 0.7)
+    this.ctx.closePath()
+    this.ctx.fill()
+
+    // Legendary cockpit with energy core
+    const cockpitGradient = this.ctx.createRadialGradient(
+      0,
+      -size * 0.6,
+      0,
+      0,
+      -size * 0.6,
+      size * 0.5
+    )
+    cockpitGradient.addColorStop(0, "#fce4ec")
+    cockpitGradient.addColorStop(0.5, "#f8bbd9")
+    cockpitGradient.addColorStop(0.8, "#f48fb1")
+    cockpitGradient.addColorStop(1, "#e91e63")
+
+    this.ctx.fillStyle = cockpitGradient
+    this.ctx.beginPath()
+    this.ctx.ellipse(0, -size * 0.6, size * 0.45, size * 0.3, 0, 0, Math.PI * 2)
+    this.ctx.fill()
+
+    // Legendary wings with quantum fins
+    this.ctx.fillStyle = "#880e4f"
+    this.ctx.beginPath()
+    // Left wing with quantum fin
+    this.ctx.moveTo(-size * 0.8, -size * 0.7)
+    this.ctx.lineTo(-size * 1.2, -size * 0.5)
+    this.ctx.lineTo(-size * 1.1, size * 0.5)
+    this.ctx.lineTo(-size * 1.0, size * 0.2)
+    this.ctx.closePath()
+    this.ctx.fill()
+
+    // Right wing with quantum fin
+    this.ctx.beginPath()
+    this.ctx.moveTo(size * 0.8, -size * 0.7)
+    this.ctx.lineTo(size * 1.2, -size * 0.5)
+    this.ctx.lineTo(size * 1.1, size * 0.5)
+    this.ctx.lineTo(size * 1.0, size * 0.2)
+    this.ctx.closePath()
+    this.ctx.fill()
+
+    // Quantum fins with pulsing energy
+    this.ctx.strokeStyle = `rgba(233, 30, 99, ${
+      0.9 + Math.sin(time * 12) * 0.1
+    })`
+    this.ctx.lineWidth = 4
+    this.ctx.beginPath()
+    this.ctx.moveTo(-size * 1.0, size * 0.2)
+    this.ctx.lineTo(-size * 1.6, size * 0.8)
+    this.ctx.moveTo(size * 1.0, size * 0.2)
+    this.ctx.lineTo(size * 1.6, size * 0.8)
+    this.ctx.stroke()
+
+    // Energy aura around the ship
+    this.ctx.strokeStyle = `rgba(233, 30, 99, ${
+      0.3 + Math.sin(time * 6) * 0.2
+    })`
+    this.ctx.lineWidth = 2
+    this.ctx.beginPath()
+    this.ctx.ellipse(0, 0, size * 1.4, size * 1.4, 0, 0, Math.PI * 2)
+    this.ctx.stroke()
+
+    // Engine
+    this.drawEngine(size, time)
+
+    // Legendary weapons
+    this.drawWeapons(size, powerLevel)
+
+    // Shield effect (if health is low)
+    if (healthPercent < 0.3) {
+      this.drawShield(size, time)
+    }
+  }
+
+  private drawEngine(size: number, time: number): void {
     // Engine exhaust with animation
     const engineGlow = Math.sin(time * 10) * 0.3 + 0.7
     const engineGradient = this.ctx.createRadialGradient(
@@ -531,7 +951,9 @@ class SpaceShooterGame {
     this.ctx.beginPath()
     this.ctx.ellipse(0, size * 0.6, size * 0.15, size * 0.1, 0, 0, Math.PI * 2)
     this.ctx.fill()
+  }
 
+  private drawWeapons(size: number, powerLevel: number): void {
     // Weapon systems (based on power level)
     if (powerLevel >= 2) {
       this.ctx.fillStyle = "#ffeb3b"
@@ -576,32 +998,17 @@ class SpaceShooterGame {
       )
       this.ctx.fill()
     }
+  }
 
+  private drawShield(size: number, time: number): void {
     // Shield effect (if health is low)
-    if (health < 30) {
-      this.ctx.strokeStyle = `rgba(255, 193, 7, ${
-        0.5 + Math.sin(time * 5) * 0.3
-      })`
-      this.ctx.lineWidth = 2
-      this.ctx.beginPath()
-      this.ctx.ellipse(0, 0, size * 1.2, size * 1.2, 0, 0, Math.PI * 2)
-      this.ctx.stroke()
-    }
-
-    // Warp core effect when moving forward
-    if (this.isMovingForward) {
-      this.drawWarpCoreEffect(size, time)
-    }
-
-    this.ctx.restore()
-
-    // Draw power level indicator
-    if (powerLevel > 1) {
-      this.ctx.fillStyle = "#ffeb3b"
-      this.ctx.font = "bold 12px Arial"
-      this.ctx.textAlign = "center"
-      this.ctx.fillText(`P${powerLevel}`, x, y - size - 15)
-    }
+    this.ctx.strokeStyle = `rgba(255, 193, 7, ${
+      0.5 + Math.sin(time * 5) * 0.3
+    })`
+    this.ctx.lineWidth = 2
+    this.ctx.beginPath()
+    this.ctx.ellipse(0, 0, size * 1.2, size * 1.2, 0, 0, Math.PI * 2)
+    this.ctx.stroke()
   }
 
   private drawWarpCoreEffect(size: number, time: number): void {
