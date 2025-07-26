@@ -1,5 +1,6 @@
 use wasm_bindgen::prelude::*;
 use js_sys::Float32Array;
+use std::collections::HashSet;
 
 #[wasm_bindgen]
 pub struct GameEngine {
@@ -308,10 +309,16 @@ impl GameEngine {
             black_hole.life -= delta_time;
 
             // Track enemies to remove (consumed by black hole)
-            let mut enemies_to_remove = Vec::new();
+            let mut enemies_to_remove = HashSet::new();
 
             // Pull enemies towards the black hole
             for (enemy_idx, enemy) in self.enemies.iter_mut().enumerate() {
+                // Safety check: ensure enemy is valid
+                if enemy.health <= 0.0 || enemy.size <= 0.0 {
+                    enemies_to_remove.insert(enemy_idx);
+                    continue;
+                }
+
                 let dx = black_hole.x - enemy.x;
                 let dy = black_hole.y - enemy.y;
                 let distance = (dx * dx + dy * dy).sqrt();
@@ -328,13 +335,17 @@ impl GameEngine {
                     // If enemy is very close, consume it
                     if distance < black_hole.size {
                         black_hole.consumed_enemies.push((enemy.x, enemy.y));
-                        enemies_to_remove.push(enemy_idx);
+                        enemies_to_remove.insert(enemy_idx);
                     }
                 }
             }
 
+            // Convert HashSet to sorted Vec for safe removal
+            let mut enemies_to_remove_vec: Vec<usize> = enemies_to_remove.into_iter().collect();
+            enemies_to_remove_vec.sort_unstable_by(|a, b| b.cmp(a)); // Sort in descending order
+
             // Remove consumed enemies
-            for &idx in enemies_to_remove.iter().rev() {
+            for &idx in &enemies_to_remove_vec {
                 if idx < self.enemies.len() {
                     self.enemies.remove(idx);
                 }
@@ -345,10 +356,16 @@ impl GameEngine {
     fn check_collisions(&mut self) {
         // Player bullets vs enemies
         let mut bullets_to_remove = Vec::new();
-        let mut enemies_to_remove = Vec::new();
+        let mut enemies_to_remove = HashSet::new();
 
         for (bullet_idx, bullet) in self.bullets.iter().enumerate() {
             for (enemy_idx, enemy) in self.enemies.iter_mut().enumerate() {
+                // Safety check: ensure enemy is valid
+                if enemy.health <= 0.0 || enemy.size <= 0.0 {
+                    enemies_to_remove.insert(enemy_idx);
+                    continue;
+                }
+
                 let dx = bullet.x - enemy.x;
                 let dy = bullet.y - enemy.y;
                 let distance = (dx * dx + dy * dy).sqrt();
@@ -356,8 +373,9 @@ impl GameEngine {
                 if distance < bullet.size + enemy.size {
                     bullets_to_remove.push(bullet_idx);
                     enemy.health -= bullet.damage;
-                                        if enemy.health <= 0.0 {
-                        enemies_to_remove.push(enemy_idx);
+
+                    if enemy.health <= 0.0 {
+                        enemies_to_remove.insert(enemy_idx);
                         self.score += match enemy.enemy_type {
                             EnemyType::Basic => 100,
                             EnemyType::Fast => 150,
@@ -382,7 +400,7 @@ impl GameEngine {
                             });
                         }
                     }
-                    break;
+                    break; // Only hit one enemy per bullet
                 }
             }
         }
@@ -418,6 +436,11 @@ impl GameEngine {
 
         // Enemies vs player
         for enemy in &self.enemies {
+            // Safety check: ensure enemy is valid
+            if enemy.health <= 0.0 || enemy.size <= 0.0 {
+                continue;
+            }
+
             let dx = enemy.x - self.player.x;
             let dy = enemy.y - self.player.y;
             let distance = (dx * dx + dy * dy).sqrt();
@@ -446,12 +469,14 @@ impl GameEngine {
             if distance < power_up.size + self.player.size {
                 match power_up.power_type {
                     PowerUpType::Health => {
+                        self.player.max_health += 20.0; // Increase max health
                         self.player.health = (self.player.health + 30.0).min(self.player.max_health);
                     }
                     PowerUpType::Weapon => {
                         self.player.power_level = (self.player.power_level + 1).min(3);
                     }
                     PowerUpType::Shield => {
+                        self.player.max_health += 30.0; // Increase max health more for shield
                         self.player.health = (self.player.health + 50.0).min(self.player.max_health);
                     }
                 }
@@ -465,7 +490,12 @@ impl GameEngine {
                 self.bullets.remove(idx);
             }
         }
-        for &idx in enemies_to_remove.iter().rev() {
+
+        // Convert HashSet to sorted Vec for safe removal
+        let mut enemies_to_remove_vec: Vec<usize> = enemies_to_remove.into_iter().collect();
+        enemies_to_remove_vec.sort_unstable_by(|a, b| b.cmp(a)); // Sort in descending order
+
+        for &idx in &enemies_to_remove_vec {
             if idx < self.enemies.len() {
                 self.enemies.remove(idx);
             }
@@ -482,8 +512,8 @@ impl GameEngine {
         self.bullets.retain(|bullet| bullet.y > -50.0 && bullet.y < self.height + 50.0);
         self.enemy_bullets.retain(|bullet| bullet.y > -50.0 && bullet.y < self.height + 50.0);
 
-        // Remove off-screen enemies
-        self.enemies.retain(|enemy| enemy.y < self.height + 100.0);
+        // Remove off-screen enemies and invalid enemies
+        self.enemies.retain(|enemy| enemy.y < self.height + 100.0 && enemy.health > 0.0 && enemy.size > 0.0);
 
         // Remove off-screen power-ups
         self.power_ups.retain(|power_up| power_up.y < self.height + 50.0);
@@ -704,7 +734,7 @@ impl GameEngine {
 
     pub fn get_explosion_events(&self) -> Vec<f32> {
         // Return explosion events: [type, x, y] where type: 0=tank, 1=blackhole
-        let mut events = Vec::new();
+        let events = Vec::new();
 
         // Check for new tank explosions (we'll track this in the game state)
         // For now, we'll return empty and handle this differently

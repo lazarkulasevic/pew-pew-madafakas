@@ -22,9 +22,9 @@ A high-performance space shooter game built with WebAssembly (Rust) and TypeScri
 
 ### Enemy Types
 
-- **🔴 Red Circles** = Basic enemies (easy to destroy)
-- **🟠 Orange Triangles** = Fast enemies (move quickly)
-- **🟣 Purple Squares** = Tank enemies (high health, health bars)
+- **🔴 Red** = Basic enemies (easy to destroy)
+- **🟠 Orange** = Fast enemies (move quickly)
+- **🟣 Purple** = Tank enemies (high health, health bars)
 
 ### Power-up System
 
