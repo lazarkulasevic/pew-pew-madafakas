@@ -19,6 +19,10 @@ pub struct GameEngine {
     width: f32,
     height: f32,
     game_over: bool,
+    // Shield system fields
+    shield_level: u32,
+    shield_active: bool,
+    shield_timer: f32,
 }
 
 #[derive(Clone)]
@@ -135,6 +139,10 @@ impl GameEngine {
             width,
             height,
             game_over: false,
+            // Initialize shield system
+            shield_level: 0,
+            shield_active: false,
+            shield_timer: 0.0,
         }
     }
 
@@ -176,6 +184,9 @@ impl GameEngine {
 
         // Update black holes
         self.update_black_holes(delta_time);
+
+        // Update shield system
+        self.update_shield(delta_time);
 
         // Check collisions
         self.check_collisions();
@@ -353,16 +364,27 @@ impl GameEngine {
         }
     }
 
+    fn update_shield(&mut self, delta_time: f32) {
+        // Update shield timer
+        if self.shield_timer > 0.0 {
+            self.shield_timer -= delta_time;
+            if self.shield_timer <= 0.0 {
+                self.shield_active = false;
+                self.shield_timer = 0.0;
+            }
+        }
+    }
+
     fn check_collisions(&mut self) {
         // Player bullets vs enemies
         let mut bullets_to_remove = Vec::new();
-        let mut enemies_to_remove = HashSet::new();
+        let mut bullet_enemies_to_remove = HashSet::new();
 
         for (bullet_idx, bullet) in self.bullets.iter().enumerate() {
             for (enemy_idx, enemy) in self.enemies.iter_mut().enumerate() {
                 // Safety check: ensure enemy is valid
                 if enemy.health <= 0.0 || enemy.size <= 0.0 {
-                    enemies_to_remove.insert(enemy_idx);
+                    bullet_enemies_to_remove.insert(enemy_idx);
                     continue;
                 }
 
@@ -375,7 +397,7 @@ impl GameEngine {
                     enemy.health -= bullet.damage;
 
                     if enemy.health <= 0.0 {
-                        enemies_to_remove.insert(enemy_idx);
+                        bullet_enemies_to_remove.insert(enemy_idx);
                         self.score += match enemy.enemy_type {
                             EnemyType::Basic => 100,
                             EnemyType::Fast => 150,
@@ -414,15 +436,28 @@ impl GameEngine {
 
             if distance < bullet.size + self.player.size {
                 enemy_bullets_to_remove.push(bullet_idx);
-                self.player.health -= bullet.damage;
 
-                // Reduce growth level when taking damage
-                if self.player.growth_level > 0 {
-                    self.player.growth_level = self.player.growth_level.saturating_sub(1);
-                }
+                // Check if shield can block the bullet
+                if self.shield_active && self.shield_level > 0 {
+                    // Shield blocks the bullet completely
+                    // Reduce shield level by 1
+                    self.shield_level = self.shield_level.saturating_sub(1);
+                    if self.shield_level == 0 {
+                        self.shield_active = false;
+                        self.shield_timer = 0.0;
+                    }
+                } else {
+                    // No shield, take full damage
+                    self.player.health -= bullet.damage;
 
-                if self.player.health <= 0.0 {
-                    self.game_over = true;
+                    // Reduce growth level when taking damage
+                    if self.player.growth_level > 0 {
+                        self.player.growth_level = self.player.growth_level.saturating_sub(1);
+                    }
+
+                    if self.player.health <= 0.0 {
+                        self.game_over = true;
+                    }
                 }
             }
         }
@@ -435,9 +470,11 @@ impl GameEngine {
         }
 
         // Enemies vs player
-        for enemy in &self.enemies {
+        let mut enemies_to_remove = Vec::new();
+        for (enemy_idx, enemy) in self.enemies.iter().enumerate() {
             // Safety check: ensure enemy is valid
             if enemy.health <= 0.0 || enemy.size <= 0.0 {
+                enemies_to_remove.push(enemy_idx);
                 continue;
             }
 
@@ -446,16 +483,53 @@ impl GameEngine {
             let distance = (dx * dx + dy * dy).sqrt();
 
             if distance < enemy.size + self.player.size {
-                self.player.health -= 20.0;
+                // Check if shield can block the enemy collision
+                if self.shield_active && self.shield_level > 0 {
+                    // Shield blocks the collision completely and destroys the enemy
+                    // For tank enemies, they might require more shield power
+                    let shield_cost = match enemy.enemy_type {
+                        EnemyType::Tank => 2, // Tank enemies cost 2 shield levels
+                        _ => 1, // Other enemies cost 1 shield level
+                    };
 
-                // Reduce growth level when taking damage
-                if self.player.growth_level > 0 {
-                    self.player.growth_level = self.player.growth_level.saturating_sub(1);
-                }
+                    if self.shield_level >= shield_cost {
+                        self.shield_level = self.shield_level.saturating_sub(shield_cost);
+                        if self.shield_level == 0 {
+                            self.shield_active = false;
+                            self.shield_timer = 0.0;
+                        }
+                        // Mark enemy for removal (shield destroyed it)
+                        enemies_to_remove.push(enemy_idx);
+                    } else {
+                        // Not enough shield power, take damage
+                        self.player.health -= 20.0;
+                        if self.player.growth_level > 0 {
+                            self.player.growth_level = self.player.growth_level.saturating_sub(1);
+                        }
+                        if self.player.health <= 0.0 {
+                            self.game_over = true;
+                        }
+                    }
+                } else {
+                    // No shield, take full damage
+                    self.player.health -= 20.0;
 
-                if self.player.health <= 0.0 {
-                    self.game_over = true;
+                    // Reduce growth level when taking damage
+                    if self.player.growth_level > 0 {
+                        self.player.growth_level = self.player.growth_level.saturating_sub(1);
+                    }
+
+                    if self.player.health <= 0.0 {
+                        self.game_over = true;
+                    }
                 }
+            }
+        }
+
+        // Remove enemies that were destroyed by shield or are invalid
+        for &idx in enemies_to_remove.iter().rev() {
+            if idx < self.enemies.len() {
+                self.enemies.remove(idx);
             }
         }
 
@@ -476,8 +550,11 @@ impl GameEngine {
                         self.player.power_level = (self.player.power_level + 1).min(3);
                     }
                     PowerUpType::Shield => {
-                        self.player.max_health += 30.0; // Increase max health more for shield
-                        self.player.health = (self.player.health + 50.0).min(self.player.max_health);
+                        // Increase shield level (separate from health)
+                        self.shield_level = (self.shield_level + 1).min(3);
+                        self.shield_active = true;
+                        self.shield_timer = 10.0; // 10 seconds duration
+                        // No health bonus - shield is separate system
                     }
                 }
                 power_ups_to_remove.push(power_up_idx);
@@ -492,10 +569,10 @@ impl GameEngine {
         }
 
         // Convert HashSet to sorted Vec for safe removal
-        let mut enemies_to_remove_vec: Vec<usize> = enemies_to_remove.into_iter().collect();
-        enemies_to_remove_vec.sort_unstable_by(|a, b| b.cmp(a)); // Sort in descending order
+        let mut bullet_enemies_to_remove_vec: Vec<usize> = bullet_enemies_to_remove.into_iter().collect();
+        bullet_enemies_to_remove_vec.sort_unstable_by(|a, b| b.cmp(a)); // Sort in descending order
 
-        for &idx in &enemies_to_remove_vec {
+        for &idx in &bullet_enemies_to_remove_vec {
             if idx < self.enemies.len() {
                 self.enemies.remove(idx);
             }
@@ -732,6 +809,18 @@ impl GameEngine {
         self.player.black_hole_cooldown
     }
 
+    pub fn get_shield_level(&self) -> u32 {
+        self.shield_level
+    }
+
+    pub fn is_shield_active(&self) -> bool {
+        self.shield_active
+    }
+
+    pub fn get_shield_timer(&self) -> f32 {
+        self.shield_timer
+    }
+
     pub fn get_explosion_events(&self) -> Vec<f32> {
         // Return explosion events: [type, x, y] where type: 0=tank, 1=blackhole
         let events = Vec::new();
@@ -766,5 +855,9 @@ impl GameEngine {
         self.enemy_spawn_timer = 0.0;
         self.power_up_spawn_timer = 0.0;
         self.game_over = false;
+        // Reset shield system
+        self.shield_level = 0;
+        self.shield_active = false;
+        self.shield_timer = 0.0;
     }
 }

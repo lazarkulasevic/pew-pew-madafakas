@@ -199,6 +199,38 @@ class SpaceShooterGame {
         blackHoleIndicator.textContent = "BLACK HOLE: READY"
       }
     }
+
+    // Update shield bar
+    const shieldLevel = this.gameEngine.get_shield_level()
+    const shieldActive = this.gameEngine.is_shield_active()
+    const shieldTimer = this.gameEngine.get_shield_timer()
+
+    const shieldBar = document.getElementById("shieldBar") as HTMLElement
+    const shieldFill = document.getElementById("shieldFill") as HTMLElement
+    const shieldText = document.getElementById("shieldText") as HTMLElement
+
+    if (shieldBar && shieldFill && shieldText) {
+      if (shieldActive && shieldLevel > 0) {
+        shieldBar.style.display = "block"
+        const shieldPercent = (shieldLevel / 3.0) * 100
+        shieldFill.style.width = `${shieldPercent}%`
+
+        // Change color based on shield level
+        if (shieldLevel === 1) {
+          shieldFill.style.backgroundColor = "#00bcd4" // Cyan
+        } else if (shieldLevel === 2) {
+          shieldFill.style.backgroundColor = "#2196f3" // Blue
+        } else {
+          shieldFill.style.backgroundColor = "#9c27b0" // Purple
+        }
+
+        shieldText.textContent = `SHIELD: ${shieldLevel}/3 (${shieldTimer.toFixed(
+          1
+        )}s)`
+      } else {
+        shieldBar.style.display = "none"
+      }
+    }
   }
 
   private activateBlackHole(): void {
@@ -389,6 +421,45 @@ class SpaceShooterGame {
         if (x >= 0 && y >= 0 && size > 0) {
           this.drawBlackHole(x, y, size, lifeRatio, pullRadius)
         }
+      }
+
+      // Read shield data using the GameEngine methods instead of parsing from array
+      try {
+        const shieldLevel = this.gameEngine.get_shield_level()
+        const shieldActive = this.gameEngine.is_shield_active()
+        const shieldTimer = this.gameEngine.get_shield_timer()
+
+        // Draw shield if active
+        if (shieldActive && shieldLevel > 0) {
+          const time = Date.now() * 0.001
+          // Get player position for shield rendering (player data starts at index 7)
+          const playerX = gameData[7] // Player x position
+          const playerY = gameData[8] // Player y position
+          const playerSize = gameData[9] // Player size
+
+          if (playerX >= 0 && playerY >= 0 && playerSize > 0) {
+            this.drawEnergyShield(
+              playerX,
+              playerY,
+              playerSize,
+              shieldLevel,
+              shieldTimer,
+              time
+            )
+
+            // Draw shield level indicator
+            this.ctx.fillStyle = "#00bcd4"
+            this.ctx.font = "bold 12px Arial"
+            this.ctx.textAlign = "center"
+            this.ctx.fillText(
+              `S${shieldLevel}`,
+              playerX,
+              playerY - playerSize - 45
+            )
+          }
+        }
+      } catch (error) {
+        console.error("Error reading shield data:", error)
       }
     } catch (error) {
       console.error("Error in render function:", error)
@@ -1079,6 +1150,201 @@ class SpaceShooterGame {
     this.ctx.beginPath()
     this.ctx.ellipse(0, 0, size * 1.2, size * 1.2, 0, 0, Math.PI * 2)
     this.ctx.stroke()
+  }
+
+  private drawEnergyShield(
+    x: number,
+    y: number,
+    shipSize: number,
+    shieldLevel: number,
+    shieldTimer: number,
+    time: number
+  ): void {
+    // Draw beautiful energy shield in front of the spaceship
+    this.ctx.save()
+    this.ctx.translate(x, y)
+
+    // Shield size and position based on level
+    const shieldSize = shipSize * (1.3 + shieldLevel * 0.15) // Bigger shield for higher levels
+    const shieldOffset = -shipSize * 0.7 // Position in front of ship
+
+    // Enhanced shield colors based on level with more vibrant effects
+    let shieldColor: string
+    let glowColor: string
+    let accentColor: string
+    switch (shieldLevel) {
+      case 1:
+        shieldColor = "rgba(0, 255, 255, 0.7)" // Bright Cyan
+        glowColor = "rgba(0, 255, 255, 0.4)"
+        accentColor = "rgba(0, 200, 200, 1.0)"
+        break
+      case 2:
+        shieldColor = "rgba(64, 156, 255, 0.8)" // Electric Blue
+        glowColor = "rgba(64, 156, 255, 0.5)"
+        accentColor = "rgba(100, 180, 255, 1.0)"
+        break
+      case 3:
+        shieldColor = "rgba(255, 64, 255, 0.9)" // Magenta
+        glowColor = "rgba(255, 64, 255, 0.6)"
+        accentColor = "rgba(255, 100, 255, 1.0)"
+        break
+      default:
+        shieldColor = "rgba(0, 255, 255, 0.7)"
+        glowColor = "rgba(0, 255, 255, 0.4)"
+        accentColor = "rgba(0, 200, 200, 1.0)"
+    }
+
+    // Enhanced animated effects
+    const timeRemaining = Math.max(0, shieldTimer) / 10.0
+    const pulseEffect = Math.sin(time * 12) * 0.15 + 0.85
+    const rotationEffect = Math.sin(time * 6) * 0.1
+    const shieldOpacity = 0.7 + Math.sin(time * 10) * 0.2
+
+    // Create gradient for the shield
+    const shieldGradient = this.ctx.createRadialGradient(
+      0,
+      shieldOffset,
+      0,
+      0,
+      shieldOffset,
+      shieldSize
+    )
+    shieldGradient.addColorStop(
+      0,
+      shieldColor.replace("0.7", (shieldOpacity * 0.9).toString())
+    )
+    shieldGradient.addColorStop(
+      0.7,
+      shieldColor.replace("0.7", (shieldOpacity * 0.6).toString())
+    )
+    shieldGradient.addColorStop(1, shieldColor.replace("0.7", "0.1"))
+
+    // Draw outer glow effect (multiple layers)
+    for (let i = 3; i >= 1; i--) {
+      this.ctx.fillStyle = glowColor.replace(
+        "0.4",
+        (0.1 * i * pulseEffect).toString()
+      )
+      this.ctx.beginPath()
+      this.ctx.ellipse(
+        0,
+        shieldOffset,
+        shieldSize * (1.4 + i * 0.2),
+        shieldSize * (0.9 + i * 0.1),
+        rotationEffect,
+        0,
+        Math.PI * 2
+      )
+      this.ctx.fill()
+    }
+
+    // Draw main shield with gradient
+    this.ctx.fillStyle = shieldGradient
+    this.ctx.beginPath()
+    this.ctx.ellipse(
+      0,
+      shieldOffset,
+      shieldSize,
+      shieldSize * 0.7,
+      rotationEffect,
+      0,
+      Math.PI * 2
+    )
+    this.ctx.fill()
+
+    // Draw shield border with animated thickness
+    const borderWidth = 3 + Math.sin(time * 8) * 1
+    this.ctx.strokeStyle = accentColor
+    this.ctx.lineWidth = borderWidth
+    this.ctx.beginPath()
+    this.ctx.ellipse(
+      0,
+      shieldOffset,
+      shieldSize,
+      shieldSize * 0.7,
+      rotationEffect,
+      0,
+      Math.PI * 2
+    )
+    this.ctx.stroke()
+
+    // Draw inner shield ring
+    this.ctx.strokeStyle = accentColor.replace("1.0", "0.6")
+    this.ctx.lineWidth = 1
+    this.ctx.beginPath()
+    this.ctx.ellipse(
+      0,
+      shieldOffset,
+      shieldSize * 0.8,
+      shieldSize * 0.6,
+      rotationEffect,
+      0,
+      Math.PI * 2
+    )
+    this.ctx.stroke()
+
+    // Enhanced energy particles with trails
+    const particleCount = shieldLevel * 4
+    for (let i = 0; i < particleCount; i++) {
+      const angle = (i / particleCount) * Math.PI * 2 + time * 4
+      const distance = shieldSize * (0.7 + Math.sin(time * 3 + i) * 0.3)
+      const particleX = Math.cos(angle) * distance
+      const particleY = Math.sin(angle) * distance + shieldOffset
+      const particleSize = (2 + Math.sin(time * 15 + i) * 1) * pulseEffect
+
+      // Draw particle trail
+      this.ctx.strokeStyle = accentColor.replace("1.0", "0.4")
+      this.ctx.lineWidth = 1
+      this.ctx.beginPath()
+      this.ctx.moveTo(particleX, particleY)
+      this.ctx.lineTo(
+        particleX - Math.cos(angle) * particleSize * 2,
+        particleY - Math.sin(angle) * particleSize * 2
+      )
+      this.ctx.stroke()
+
+      // Draw particle
+      this.ctx.fillStyle = accentColor
+      this.ctx.beginPath()
+      this.ctx.arc(particleX, particleY, particleSize, 0, Math.PI * 2)
+      this.ctx.fill()
+    }
+
+    // Draw energy waves
+    for (let i = 0; i < 3; i++) {
+      const waveSize = shieldSize * (1.1 + i * 0.1)
+      const waveOpacity = (0.3 - i * 0.1) * pulseEffect
+      this.ctx.strokeStyle = accentColor.replace("1.0", waveOpacity.toString())
+      this.ctx.lineWidth = 2
+      this.ctx.beginPath()
+      this.ctx.ellipse(
+        0,
+        shieldOffset,
+        waveSize,
+        waveSize * 0.7,
+        rotationEffect + time * 2,
+        0,
+        Math.PI * 2
+      )
+      this.ctx.stroke()
+    }
+
+    // Draw shield level indicator with glow
+    this.ctx.shadowColor = accentColor
+    this.ctx.shadowBlur = 10
+    this.ctx.fillStyle = accentColor
+    this.ctx.font = "bold 16px Arial"
+    this.ctx.textAlign = "center"
+    this.ctx.fillText(`${shieldLevel}`, 0, shieldOffset + 8)
+    this.ctx.shadowBlur = 0
+
+    // Draw shield status indicator
+    const statusText = shieldTimer > 0 ? `${shieldTimer.toFixed(1)}s` : "ACTIVE"
+    this.ctx.fillStyle = accentColor.replace("1.0", "0.8")
+    this.ctx.font = "bold 10px Arial"
+    this.ctx.fillText(statusText, 0, shieldOffset + 25)
+
+    this.ctx.restore()
   }
 
   private drawBlackHole(
