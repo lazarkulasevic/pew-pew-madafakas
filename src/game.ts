@@ -1219,74 +1219,71 @@ class SpaceShooterGame {
     )
     shieldGradient.addColorStop(1, shieldColor.replace("0.7", "0.1"))
 
-    // Draw outer glow effect (multiple layers)
+    // Draw outer glow effect (multiple layers) - semi-circle
     for (let i = 3; i >= 1; i--) {
       this.ctx.fillStyle = glowColor.replace(
         "0.4",
         (0.1 * i * pulseEffect).toString()
       )
       this.ctx.beginPath()
-      this.ctx.ellipse(
+      this.ctx.arc(
         0,
         shieldOffset,
         shieldSize * (1.4 + i * 0.2),
-        shieldSize * (0.9 + i * 0.1),
-        rotationEffect,
-        0,
-        Math.PI * 2
+        Math.PI, // Start from left side
+        Math.PI * 2, // End at right side (semi-circle)
+        false
       )
       this.ctx.fill()
     }
 
-    // Draw main shield with gradient
+    // Draw main shield with gradient - semi-circle
     this.ctx.fillStyle = shieldGradient
     this.ctx.beginPath()
-    this.ctx.ellipse(
+    this.ctx.arc(
       0,
       shieldOffset,
       shieldSize,
-      shieldSize * 0.7,
-      rotationEffect,
-      0,
-      Math.PI * 2
+      Math.PI, // Start from left side
+      Math.PI * 2, // End at right side (semi-circle)
+      false
     )
     this.ctx.fill()
 
-    // Draw shield border with animated thickness
+    // Draw shield border with animated thickness - semi-circle
     const borderWidth = 3 + Math.sin(time * 8) * 1
     this.ctx.strokeStyle = accentColor
     this.ctx.lineWidth = borderWidth
     this.ctx.beginPath()
-    this.ctx.ellipse(
+    this.ctx.arc(
       0,
       shieldOffset,
       shieldSize,
-      shieldSize * 0.7,
-      rotationEffect,
-      0,
-      Math.PI * 2
+      Math.PI, // Start from left side
+      Math.PI * 2, // End at right side (semi-circle)
+      false
     )
     this.ctx.stroke()
 
-    // Draw inner shield ring
+    // Draw inner shield ring - semi-circle
     this.ctx.strokeStyle = accentColor.replace("1.0", "0.6")
     this.ctx.lineWidth = 1
     this.ctx.beginPath()
-    this.ctx.ellipse(
+    this.ctx.arc(
       0,
       shieldOffset,
       shieldSize * 0.8,
-      shieldSize * 0.6,
-      rotationEffect,
-      0,
-      Math.PI * 2
+      Math.PI, // Start from left side
+      Math.PI * 2, // End at right side (semi-circle)
+      false
     )
     this.ctx.stroke()
 
-    // Enhanced energy particles with trails
+    // Enhanced energy particles with trails - semi-circle distribution
     const particleCount = shieldLevel * 4
     for (let i = 0; i < particleCount; i++) {
-      const angle = (i / particleCount) * Math.PI * 2 + time * 4
+      // Distribute particles along the semi-circle (from Math.PI to Math.PI * 2)
+      const angle = Math.PI + (i / particleCount) * Math.PI + time * 4
       const distance = shieldSize * (0.7 + Math.sin(time * 3 + i) * 0.3)
       const particleX = Math.cos(angle) * distance
       const particleY = Math.sin(angle) * distance + shieldOffset
@@ -1310,21 +1307,20 @@ class SpaceShooterGame {
       this.ctx.fill()
     }
 
-    // Draw energy waves
+    // Draw energy waves - semi-circle
     for (let i = 0; i < 3; i++) {
       const waveSize = shieldSize * (1.1 + i * 0.1)
       const waveOpacity = (0.3 - i * 0.1) * pulseEffect
       this.ctx.strokeStyle = accentColor.replace("1.0", waveOpacity.toString())
       this.ctx.lineWidth = 2
       this.ctx.beginPath()
-      this.ctx.ellipse(
+      this.ctx.arc(
         0,
         shieldOffset,
         waveSize,
-        waveSize * 0.7,
-        rotationEffect + time * 2,
-        0,
-        Math.PI * 2
+        Math.PI, // Start from left side
+        Math.PI * 2, // End at right side (semi-circle)
+        false
       )
       this.ctx.stroke()
     }
